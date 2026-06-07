@@ -1,0 +1,422 @@
+/* ============================================
+   JUSKOE — Pricing Page (matches website theme)
+   Purple: #7C3AED  |  Text: #2e2d2d  |  Bg: #ede9fe
+   ============================================ */
+
+.pp-page {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #ede9fe;
+    padding: 32px 24px;
+    overflow: hidden;
+    user-select: none;
+}
+
+/* Grid tiles background */
+.pp-grid {
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(124, 58, 237, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124, 58, 237, 0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Purple glows */
+.pp-glow {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.pp-glow-top {
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(124, 58, 237, 0.15) 0%, transparent 70%);
+}
+
+.pp-glow-left {
+    top: 60px;
+    left: 5%;
+    width: 280px;
+    height: 180px;
+    background: rgba(124, 58, 237, 0.08);
+    filter: blur(60px);
+}
+
+.pp-glow-right {
+    bottom: 80px;
+    right: 8%;
+    width: 240px;
+    height: 160px;
+    background: rgba(167, 139, 250, 0.10);
+    filter: blur(60px);
+}
+
+/* Content wrapper */
+.pp-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 640px;
+    width: 100%;
+}
+
+/* Badge */
+.pp-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #7C3AED;
+    background: rgba(124, 58, 237, 0.08);
+    border: 1px solid rgba(124, 58, 237, 0.15);
+    border-radius: 20px;
+    margin-bottom: 16px;
+}
+
+/* Title */
+.pp-title {
+    font-size: 32px;
+    font-weight: 800;
+    color: #2e2d2d;
+    text-align: center;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+}
+
+.pp-title-accent {
+    color: #7C3AED;
+    font-style: italic;
+}
+
+.pp-subtitle {
+    font-size: 14px;
+    color: rgba(46, 45, 45, 0.45);
+    margin: 0 0 20px;
+    text-align: center;
+}
+
+/* Billing toggle */
+.pp-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.pp-toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(46, 45, 45, 0.3);
+    transition: color 0.3s;
+}
+
+.pp-toggle-label.active {
+    color: #2e2d2d;
+}
+
+.pp-toggle-btn {
+    position: relative;
+    width: 48px;
+    height: 24px;
+    border-radius: 12px;
+    border: none;
+    background: #c4c4c4;
+    cursor: pointer;
+    transition: all 0.3s;
+    flex-shrink: 0;
+}
+
+.pp-toggle-btn.active {
+    background: linear-gradient(135deg, #7C3AED, #a78bfa);
+    box-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
+}
+
+.pp-toggle-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pp-toggle-btn.active .pp-toggle-knob {
+    left: 26px;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+}
+
+.pp-toggle-save {
+    font-size: 9px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: rgba(124, 58, 237, 0.1);
+    color: #7C3AED;
+    letter-spacing: 0.05em;
+}
+
+/* Cards container */
+.pp-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+/* Card base */
+.pp-card {
+    position: relative;
+    border-radius: 16px;
+    border: 1px solid rgba(46, 45, 45, 0.12);
+    background: #ffffff;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Pro card */
+.pp-card-pro {
+    border: 2px solid rgba(124, 58, 237, 0.35);
+    background: linear-gradient(160deg, rgba(124, 58, 237, 0.04) 0%, rgba(167, 139, 250, 0.06) 50%, rgba(124, 58, 237, 0.02) 100%);
+    box-shadow: 0 20px 60px rgba(124, 58, 237, 0.15), 0 4px 16px rgba(124, 58, 237, 0.08);
+}
+
+.pp-pro-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #7C3AED, #a78bfa, #7C3AED);
+}
+
+.pp-popular-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #fff;
+    background: linear-gradient(135deg, #7C3AED, #5b21b6);
+    padding: 3px 8px;
+    border-radius: 5px;
+    z-index: 2;
+}
+
+/* Card inner */
+.pp-card-inner {
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.pp-card-inner-pro {
+    background-image:
+        linear-gradient(rgba(124, 58, 237, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124, 58, 237, 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+}
+
+/* Plan header */
+.pp-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.pp-plan-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(46, 45, 45, 0.06);
+    color: #2e2d2d;
+}
+
+.pp-icon-pro {
+    background: rgba(124, 58, 237, 0.1);
+    color: #7C3AED;
+}
+
+.pp-plan-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #2e2d2d;
+}
+
+.pp-label-pro {
+    color: #7C3AED;
+}
+
+/* Price */
+.pp-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+
+.pp-price {
+    font-size: 32px;
+    font-weight: 900;
+    color: #2e2d2d;
+    letter-spacing: -0.02em;
+}
+
+.pp-period {
+    font-size: 11px;
+    color: rgba(46, 45, 45, 0.4);
+}
+
+/* CTA buttons */
+.pp-card-btn {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 14px;
+}
+
+.pp-btn-free {
+    background: transparent;
+    border: 2px solid #2e2d2d;
+    color: #2e2d2d;
+}
+
+.pp-btn-free:hover {
+    background: #2e2d2d;
+    color: #fff;
+}
+
+.pp-btn-pro {
+    background: linear-gradient(135deg, #7C3AED, #5b21b6);
+    color: #fff;
+    border: none;
+}
+
+.pp-btn-pro:hover {
+    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.3);
+    transform: translateY(-1px);
+}
+
+.pp-btn-pro:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+/* Dividers */
+.pp-divider {
+    height: 1px;
+    background: rgba(46, 45, 45, 0.08);
+    margin-bottom: 12px;
+}
+
+.pp-divider-pro {
+    background: rgba(124, 58, 237, 0.12);
+}
+
+/* Section labels */
+.pp-section-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #2e2d2d;
+    margin: 0 0 8px;
+}
+
+.pp-section-pro {
+    color: #7C3AED;
+}
+
+/* Features list */
+.pp-features {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 12px;
+}
+
+.pp-feat {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: rgba(46, 45, 45, 0.7);
+}
+
+/* Dot bullet */
+.pp-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #2e2d2d;
+    opacity: 0.3;
+    flex-shrink: 0;
+}
+
+.pp-dot-purple {
+    background: #7C3AED;
+    opacity: 1;
+}
+
+/* Check icon */
+.pp-check-icon {
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    background: rgba(46, 45, 45, 0.08);
+    color: #2e2d2d;
+    flex-shrink: 0;
+}
+
+.pp-check-pro {
+    background: rgba(124, 58, 237, 0.12);
+    color: #7C3AED;
+}
+
+/* Bottom note */
+.pp-note {
+    font-size: 11px;
+    color: rgba(46, 45, 45, 0.35);
+    text-align: center;
+    margin: 0;
+}

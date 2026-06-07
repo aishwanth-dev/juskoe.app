@@ -1,0 +1,13 @@
+{
+  "rewrites": [
+    { "source": "/auth/callback", "destination": "/auth/callback/index.html" },
+    { "source": "/checkout", "destination": "/checkout/index.html" },
+    { "source": "/checkout/", "destination": "/checkout/index.html" }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/auth/(.*)", "dest": "/auth/$1" },
+    { "src": "/checkout/(.*)", "dest": "/checkout/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}

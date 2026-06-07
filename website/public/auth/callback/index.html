@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juskoe — Signing in...</title>
+<link rel="icon" type="image/png" href="/juskoe-logo.png">
+<link rel="shortcut icon" type="image/png" href="/juskoe-logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#f8f5fb;
+background-image:linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+background-size:40px 40px;position:relative}
+body::before{content:'';position:absolute;inset:0;
+background:radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.95) 0%, transparent 50%),
+radial-gradient(ellipse at 0% 0%, rgba(180,140,220,0.5) 0%, transparent 50%),
+radial-gradient(ellipse at 100% 0%, rgba(190,150,230,0.45) 0%, transparent 50%),
+radial-gradient(ellipse at 100% 100%, rgba(185,145,225,0.5) 0%, transparent 50%),
+radial-gradient(ellipse at 0% 100%, rgba(175,135,215,0.45) 0%, transparent 50%);
+pointer-events:none}
+.card{position:relative;text-align:center;background:rgba(255,255,255,0.85);
+backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,0.06);border-radius:20px;
+padding:48px 56px;max-width:400px;width:90%;
+box-shadow:0 4px 24px rgba(0,0,0,0.06),0 1px 4px rgba(0,0,0,0.04)}
+.logo{font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:8px;letter-spacing:-0.5px}
+.logo span{background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.spinner{width:32px;height:32px;border:3px solid rgba(124,58,237,0.15);border-top-color:#7c3aed;
+border-radius:50%;animation:spin .7s linear infinite;margin:24px auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+h2{font-size:17px;color:#1a1a1a;margin:0 0 8px;font-weight:600}
+p{font-size:13px;color:#888;margin:0;line-height:1.5}
+.ok{color:#059669}.err{color:#dc2626}
+.ok-icon{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;
+border-radius:50%;background:rgba(16,185,129,0.1);margin:0 auto 16px}
+.ok-icon svg{width:28px;height:28px;color:#10b981}
+.err-icon{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;
+border-radius:50%;background:rgba(239,68,68,0.08);margin:0 auto 16px}
+.err-icon svg{width:28px;height:28px;color:#dc2626}
+.sub{font-size:12px;color:rgba(46,45,45,0.4);margin-top:24px}
+</style>
+</head>
+<body>
+<div class="card">
+<div class="logo"><span>juskoe</span></div>
+<div class="spinner" id="sp"></div>
+<div id="icon"></div>
+<h2 id="t">Signing you in...</h2>
+<p id="m">Authenticating with Google. Please wait.</p>
+<p class="sub" id="sub"></p>
+</div>
+<script>
+(function(){
+  var hash = location.hash.substring(1);
+  if (!hash) hash = location.search.substring(1);
+
+  if (!hash) {
+    showError('No Authentication Data', 'No tokens received. Please try logging in again from Juskoe.');
+    return;
+  }
+
+  var params = new URLSearchParams(hash);
+  var accessToken = params.get('access_token');
+  var refreshToken = params.get('refresh_token');
+
+  if (!accessToken || !refreshToken) {
+    showError('Sign-in Failed', 'Missing authentication tokens. Please try again from Juskoe.');
+    return;
+  }
+
+  // Send tokens to the local Juskoe app (running on port 47831)
+  var relayUrl = 'http://localhost:47831/auth-complete?access_token=' + encodeURIComponent(accessToken) + '&refresh_token=' + encodeURIComponent(refreshToken);
+
+  fetch(relayUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.success) {
+        showSuccess();
+      } else {
+        showError('Sign-in Failed', d.error || 'Could not complete sign-in. Please try again.');
+      }
+    })
+    .catch(function() {
+      // Local relay failed — try deep link as fallback
+      var deepLink = 'juskoe://auth-callback?access_token=' + encodeURIComponent(accessToken) + '&refresh_token=' + encodeURIComponent(refreshToken);
+      window.location.href = deepLink;
+      setTimeout(function() {
+        showSuccess();
+        document.getElementById('sub').textContent = 'If Juskoe did not open, please return to the app manually.';
+      }, 1500);
+    });
+
+  function showSuccess() {
+    document.getElementById('sp').style.display = 'none';
+    document.getElementById('icon').innerHTML = '<div class="ok-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>';
+    document.getElementById('t').textContent = 'Signed in successfully!';
+    document.getElementById('t').className = 'ok';
+    document.getElementById('m').textContent = 'You can close this tab and return to Juskoe.';
+    document.getElementById('sub').textContent = 'This tab will close automatically...';
+    setTimeout(function() { window.close(); }, 2000);
+  }
+
+  function showError(title, msg) {
+    document.getElementById('sp').style.display = 'none';
+    document.getElementById('icon').innerHTML = '<div class="err-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1"/></svg></div>';
+    document.getElementById('t').textContent = title;
+    document.getElementById('t').className = 'err';
+    document.getElementById('m').textContent = msg;
+  }
+})();
+</script>
+</body>
+</html>

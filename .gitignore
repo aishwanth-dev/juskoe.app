@@ -1,0 +1,58 @@
+# ══════════════════════════════════════════
+# JUSKOE — Root .gitignore
+# ══════════════════════════════════════════
+
+# === Node / Desktop ===
+node_modules/
+dist/
+release/
+build/
+*.log
+.env
+.env.local
+.env.*.local
+
+# === Android ===
+juskoe_android/.gradle/
+juskoe_android/.kotlin/
+juskoe_android/app/build/
+juskoe_android/build/
+juskoe_android/local.properties
+juskoe_android/*.txt
+*.apk
+*.aab
+
+# === Website ===
+website/node_modules/
+website/.git/
+website/dist/
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === Temp / Junk ===
+*.tmp
+.tmp_*
+*-debug.log
+*-stderr.txt
+*-stdout.txt
+New folder/
+
+# === Large model files (excluded - too large for GitHub) ===
+# Download these separately or use Git LFS
+assets/ggml-*.bin
+assets/sherpa-onnx-whisper-base/*.onnx
+assets/whisper/
+assets/whisper-bin.zip
+juskoe_android/app/src/main/assets/sherpa-onnx-whisper-tiny/*.onnx
+juskoe_android/app/libs/*.aar
+
+# === Supabase ===
+supabase/.temp/

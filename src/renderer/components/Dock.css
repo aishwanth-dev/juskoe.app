@@ -1,0 +1,199 @@
+/* ========================================
+   Dock - macOS-style bottom navigation
+   ======================================== */
+
+/* Container that holds the dock fixed at the bottom */
+.dock-wrapper {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    padding: 0 16px 14px;
+    z-index: 100;
+    pointer-events: none;
+}
+
+/* The dock panel itself */
+.dock-panel {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 20px;
+    pointer-events: all;
+
+    /* Glassmorphism */
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        0 2px 8px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Each dock item */
+.dock-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    outline: none;
+    -webkit-app-region: no-drag;
+}
+
+/* Magnification effect - scale up on hover */
+.dock-item:hover {
+    transform: scale(1.35) translateY(-8px);
+    color: var(--color-text);
+}
+
+/* Adjacent items also scale slightly for the "wave" effect */
+.dock-item:hover+.dock-item {
+    transform: scale(1.12) translateY(-2px);
+}
+
+.dock-item:has(+ .dock-item:hover) {
+    transform: scale(1.12) translateY(-2px);
+}
+
+/* Active state - the selected page */
+.dock-item.active {
+    color: var(--color-text);
+    background: rgba(46, 45, 45, 0.08);
+}
+
+.dock-item.active .dock-icon-svg {
+    stroke-width: 2.4;
+}
+
+/* Active indicator dot */
+.dock-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-brown, #2e2d2d);
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+/* Non-active items don't have dot */
+.dock-item::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--color-brown, #2e2d2d);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* Dock icon */
+.dock-icon-svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Tooltip label */
+.dock-tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.8);
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+    /* Tooltip glassmorphism */
+    background: rgba(30, 30, 30, 0.85);
+    color: #ffffff;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dock-item:hover .dock-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+}
+
+/* Divider between nav items and settings */
+.dock-divider {
+    width: 1px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 0 4px;
+    align-self: center;
+    border-radius: 1px;
+    flex-shrink: 0;
+}
+
+/* Settings button specific - slightly different vibe */
+.dock-item.settings-btn:hover {
+    color: var(--color-primary);
+}
+
+/* Hover background glow for items */
+.dock-item::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    background: radial-gradient(circle, rgba(46, 45, 45, 0.12) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.dock-item:hover::before {
+    opacity: 1;
+}
+
+/* Responsive - slightly smaller on narrow screens */
+@media (max-width: 500px) {
+    .dock-panel {
+        gap: 4px;
+        padding: 8px 12px;
+    }
+
+    .dock-item {
+        width: 42px;
+        height: 42px;
+    }
+
+    .dock-icon-svg {
+        width: 20px;
+        height: 20px;
+    }
+}

@@ -1,0 +1,444 @@
+/* ============================================
+   JUSKOE — Onboarding Slides + Pricing
+   Clean Wispr-style: white bg, app colors
+   ============================================ */
+
+/* ---- Shared Page Shell ---- */
+.ob-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #ffffff;
+    padding: 32px;
+    user-select: none;
+    overflow: hidden;
+}
+
+/* Corner logo */
+.ob-corner-logo {
+    position: fixed;
+    top: 10px;
+    left: 14px;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    z-index: 10;
+    -webkit-app-region: drag;
+}
+
+/* ---- Dot navigation ---- */
+.ob-dots {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 36px;
+}
+
+.ob-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    transition: all 0.3s ease;
+}
+
+.ob-dot.active {
+    background: #2e2d2d;
+    width: 20px;
+    border-radius: 4px;
+}
+
+.ob-dot.done {
+    background: #2e2d2d;
+}
+
+/* ---- Content Card ---- */
+.ob-card {
+    width: 100%;
+    max-width: 440px;
+    text-align: center;
+    animation: obSlide 0.35s ease-out;
+}
+
+@keyframes obSlide {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Logo image */
+.ob-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(46, 45, 45, 0.15);
+}
+
+/* Icon box (dark rounded square) */
+.ob-icon-box {
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+    background: #2e2d2d;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 26px;
+}
+
+.ob-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 8px;
+    letter-spacing: -0.5px;
+}
+
+.ob-subtitle {
+    font-size: 14px;
+    color: #999;
+    margin: 0 0 32px;
+    line-height: 1.5;
+}
+
+/* Feature rows */
+.ob-features {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 32px;
+    text-align: left;
+}
+
+.ob-feature {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: #fafafa;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+}
+
+.ob-feature:hover {
+    background: #f3f3f3;
+    transform: translateX(3px);
+}
+
+.ob-feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #2e2d2d;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.ob-feature h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 2px;
+}
+
+.ob-feature p {
+    font-size: 12px;
+    color: #999;
+    margin: 0;
+}
+
+/* How it works — mode cards */
+.ob-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 32px;
+    text-align: left;
+}
+
+.ob-mode-card {
+    padding: 16px;
+    background: #fafafa;
+    border-radius: 14px;
+    transition: all 0.2s ease;
+}
+
+.ob-mode-card:hover {
+    background: #f3f3f3;
+    transform: translateY(-2px);
+}
+
+.ob-mode-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #2e2d2d;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.ob-mode-card h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 4px;
+}
+
+.ob-mode-card p {
+    font-size: 11px;
+    color: #999;
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Primary button */
+.ob-btn {
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 14px;
+    background: #2e2d2d;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ob-btn:hover {
+    background: #1a1919;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(46, 45, 45, 0.2);
+}
+
+/* Skip text */
+.ob-skip {
+    margin-top: 14px;
+    font-size: 12px;
+    color: #ccc;
+    cursor: pointer;
+    border: none;
+    background: none;
+    transition: color 0.2s;
+}
+
+.ob-skip:hover {
+    color: #999;
+}
+
+/* ============================================
+   PRICING PAGE (first-time)
+   ============================================ */
+
+.pricing-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #ffffff;
+    padding: 32px;
+    user-select: none;
+}
+
+.pricing-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 6px;
+    letter-spacing: -0.5px;
+}
+
+.pricing-subtitle {
+    font-size: 14px;
+    color: #999;
+    margin: 0 0 28px;
+}
+
+/* Billing toggle */
+.pricing-toggle {
+    display: flex;
+    background: #f5f5f5;
+    border-radius: 10px;
+    padding: 3px;
+    margin-bottom: 24px;
+}
+
+.pricing-toggle-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #999;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pricing-toggle-btn.active {
+    background: #fff;
+    color: #1a1a1a;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+/* Plan cards row */
+.pricing-cards {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 28px;
+    width: 100%;
+    max-width: 560px;
+}
+
+.pricing-card {
+    flex: 1;
+    padding: 24px 20px;
+    background: #fafafa;
+    border-radius: 16px;
+    border: 2px solid transparent;
+    text-align: left;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.pricing-card.current {
+    border-color: #2e2d2d;
+    background: #fff;
+}
+
+.pricing-card.pro {
+    background: #2e2d2d;
+    color: #fff;
+}
+
+.pricing-badge {
+    position: absolute;
+    top: -10px;
+    right: 16px;
+    background: #fbbf24;
+    color: #1a1a1a;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+}
+
+.pricing-plan-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #999;
+    margin: 0 0 4px;
+}
+
+.pricing-card.pro .pricing-plan-label {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.pricing-plan-name {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 4px;
+}
+
+.pricing-plan-price {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 16px;
+}
+
+.pricing-plan-price span {
+    font-size: 14px;
+    font-weight: 400;
+    opacity: 0.5;
+}
+
+.pricing-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pricing-features li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: #666;
+}
+
+.pricing-card.pro .pricing-features li {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.pricing-features li svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: #10b981;
+}
+
+.pricing-card.pro .pricing-features li svg {
+    color: #fbbf24;
+}
+
+/* Plan button */
+.pricing-plan-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pricing-plan-btn.current {
+    background: #f0f0f0;
+    color: #999;
+    cursor: default;
+}
+
+.pricing-plan-btn.upgrade {
+    background: #fbbf24;
+    color: #1a1a1a;
+}
+
+.pricing-plan-btn.upgrade:hover {
+    background: #f59e0b;
+    transform: translateY(-1px);
+}
+
+/* Continue free button */
+.pricing-continue {
+    width: 100%;
+    max-width: 560px;
+}
+
+.pricing-continue .ob-btn {
+    background: #2e2d2d;
+}

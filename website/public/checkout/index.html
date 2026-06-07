@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Juskoe — Complete Your Subscription</title>
+<link rel="icon" type="image/png" href="/juskoe-logo.png">
+<link rel="shortcut icon" type="image/png" href="/juskoe-logo.png">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#fff;position:relative;overflow:hidden;color:#1a1a1a}
+body::before{content:'';position:fixed;inset:0;
+background:
+  radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.95) 0%, transparent 50%),
+  radial-gradient(ellipse at 0% 0%, rgba(180,140,220,0.5) 0%, transparent 50%),
+  radial-gradient(ellipse at 100% 0%, rgba(190,150,230,0.45) 0%, transparent 50%),
+  radial-gradient(ellipse at 100% 100%, rgba(185,145,225,0.5) 0%, transparent 50%),
+  radial-gradient(ellipse at 0% 100%, rgba(175,135,215,0.45) 0%, transparent 50%);
+pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;inset:0;
+background-image:linear-gradient(rgba(0,0,0,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.03) 1px,transparent 1px);
+background-size:40px 40px;pointer-events:none;z-index:0}
+
+.checkout{position:relative;z-index:1;display:flex;max-width:720px;width:94%;
+background:rgba(255,255,255,0.75);backdrop-filter:blur(20px);
+border:1px solid rgba(0,0,0,0.06);border-radius:12px;
+box-shadow:0 16px 48px rgba(0,0,0,0.06);overflow:hidden}
+
+/* Left */
+.summary{flex:1.1;padding:32px 28px;border-right:1px solid rgba(0,0,0,0.06)}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+.brand-logo{width:32px;height:32px;border-radius:8px;object-fit:contain}
+.brand-name{font-size:18px;font-weight:700;color:#1a1a1a}
+.section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;
+color:rgba(0,0,0,0.3);margin-bottom:12px}
+
+.plan-card{background:rgba(255,255,255,0.6);border:1px solid rgba(0,0,0,0.06);
+border-radius:10px;padding:18px;margin-bottom:20px}
+.plan-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.plan-name{font-size:14px;font-weight:700;color:#1a1a1a}
+.plan-type{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;
+padding:2px 6px;border-radius:4px;background:rgba(46,45,45,0.08);color:#2e2d2d}
+.plan-price{font-size:28px;font-weight:700;color:#1a1a1a;letter-spacing:-0.5px}
+.plan-price span{font-size:13px;font-weight:400;color:rgba(0,0,0,0.35);letter-spacing:0}
+
+.feat-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;
+color:rgba(0,0,0,0.3);margin-bottom:10px}
+.feats{list-style:none;display:flex;flex-direction:column;gap:7px}
+.feats li{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(0,0,0,0.55);font-weight:500}
+.feats li svg{flex-shrink:0;width:14px;height:14px;color:#2e2d2d}
+
+/* Right */
+.payment{flex:0.8;padding:32px 24px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.pay-icon{width:56px;height:56px;border-radius:12px;
+background:rgba(46,45,45,0.06);border:1px solid rgba(0,0,0,0.06);
+display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.pay-icon svg{width:24px;height:24px;color:#2e2d2d}
+.pay-title{font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:4px}
+.pay-desc{font-size:12px;color:rgba(0,0,0,0.4);line-height:1.5;margin-bottom:20px;max-width:200px}
+
+/* Button — 8px border-radius, same as app */
+.pay-btn{width:100%;max-width:200px;padding:11px 20px;
+background:#2e2d2d;color:#fff;
+border:none;border-radius:8px;font-family:'Inter',sans-serif;
+font-size:13px;font-weight:600;cursor:pointer;
+transition:background 0.15s ease,transform 0.1s ease}
+.pay-btn:hover{background:#1a1919}
+.pay-btn:active{transform:scale(0.98)}
+.pay-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+
+/* Success state */
+.pay-btn.success{background:#059669}
+
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;
+border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:4px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.status{font-size:11px;font-weight:600;margin-top:12px;min-height:16px}
+.status.ok{color:#059669}.status.err{color:#dc2626}
+.note{font-size:10px;color:rgba(0,0,0,0.2);margin-top:12px;max-width:200px;line-height:1.4}
+.powered{font-size:9px;color:rgba(0,0,0,0.15);margin-top:16px;letter-spacing:0.5px;text-transform:uppercase}
+
+/* Coupon */
+.coupon-row{display:flex;gap:6px;width:100%;max-width:200px;margin-bottom:12px}
+.coupon-input{flex:1;padding:8px 10px;border:1px solid rgba(0,0,0,0.1);border-radius:6px;
+font-family:'Inter',sans-serif;font-size:12px;outline:none;background:rgba(255,255,255,0.6);
+transition:border-color 0.15s}
+.coupon-input:focus{border-color:rgba(46,45,45,0.3)}
+.coupon-input::placeholder{color:rgba(0,0,0,0.25)}
+.coupon-btn{padding:8px 12px;background:rgba(46,45,45,0.08);border:1px solid rgba(0,0,0,0.06);
+border-radius:6px;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;
+cursor:pointer;color:#2e2d2d;transition:background 0.15s}
+.coupon-btn:hover{background:rgba(46,45,45,0.14)}
+.coupon-msg{font-size:10px;margin-bottom:8px;min-height:14px}
+
+@media(max-width:640px){
+.checkout{flex-direction:column;border-radius:10px}
+.summary{border-right:none;border-bottom:1px solid rgba(0,0,0,0.06);padding:24px 20px}
+.payment{padding:24px 20px}
+}
+</style>
+</head>
+<body>
+<div class="checkout">
+    <div class="summary">
+        <div class="brand">
+            <img class="brand-logo" src="/juskoe-logo.png" alt="Juskoe" onerror="this.style.display='none'">
+            <span class="brand-name">Juskoe</span>
+        </div>
+        <div class="section-label">Your Plan</div>
+        <div class="plan-card">
+            <div class="plan-top">
+                <div class="plan-name" id="planName">Pro Monthly</div>
+                <div class="plan-type" id="planBadge">MONTHLY</div>
+            </div>
+            <div class="plan-price" id="planPrice">₹359 <span>/month</span></div>
+        </div>
+        <div class="feat-label">What you get</div>
+        <ul class="feats">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Unlimited AI rewrites</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Unlimited grammar fixes</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Cloud sync across devices</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Custom writing styles</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Priority support</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Early access to features</li>
+        </ul>
+    </div>
+    <div class="payment">
+        <div class="pay-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        <div class="pay-title">Complete Payment</div>
+        <div class="pay-desc">Secure checkout via Razorpay</div>
+        <button class="pay-btn" id="payBtn" disabled>Pay Now</button>
+        <div class="status" id="statusMsg"></div>
+        <div style="height:10px"></div>
+        <div class="coupon-row">
+            <input class="coupon-input" id="couponInput" type="text" placeholder="Coupon code" maxlength="30">
+            <button class="coupon-btn" id="couponBtn" type="button">Apply</button>
+        </div>
+        <div class="coupon-msg" id="couponMsg"></div>
+        <div class="note">Cancel anytime from Juskoe app settings. No questions asked.</div>
+        <div class="powered">Payments by Razorpay</div>
+    </div>
+</div>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+(function(){
+    var p=new URLSearchParams(location.search);
+    var sid=p.get('subscription_id'),kid=p.get('key_id');
+    var email=p.get('email')||'',name=p.get('name')||'';
+    var plan=p.get('plan')||'pro_monthly';
+    var plans={
+        pro_monthly:{name:'Pro Monthly',html:'₹359 <span>/month</span>',badge:'MONTHLY',total:'₹359/mo'},
+        pro_annual:{name:'Pro Annual',html:'₹300 <span>/mo</span><br><span style="font-size:12px;color:rgba(0,0,0,0.35);font-weight:400">Billed ₹3,600/year</span>',badge:'ANNUAL',total:'₹3,600/yr'}
+    };
+    var d=plans[plan]||plans.pro_monthly;
+    document.getElementById('planName').textContent=d.name;
+    document.getElementById('planPrice').innerHTML=d.html;
+    document.getElementById('planBadge').textContent=d.badge;
+    var btn=document.getElementById('payBtn');
+    var isTrial=false;
+
+    if(!sid||!kid){
+        btn.textContent='Invalid Link';
+        document.getElementById('statusMsg').textContent='Missing payment details. Try again from Juskoe.';
+        document.getElementById('statusMsg').className='status err';
+        return;
+    }
+    btn.disabled=false;
+    btn.textContent='Pay '+d.total;
+
+    // Hide coupon section for annual plans
+    if(plan==='pro_annual'){
+        document.querySelector('.coupon-row').style.display='none';
+        document.getElementById('couponMsg').style.display='none';
+    }
+
+    // Coupon code handling
+    var couponBtn=document.getElementById('couponBtn');
+    var couponInput=document.getElementById('couponInput');
+    var couponMsg=document.getElementById('couponMsg');
+    couponBtn.onclick=function(){
+        var code=couponInput.value.trim().toUpperCase();
+        if(!code){couponMsg.textContent='Enter a coupon code';couponMsg.style.color='#dc2626';return;}
+        couponBtn.disabled=true;
+        couponBtn.textContent='...';
+        couponMsg.textContent='Validating...';
+        couponMsg.style.color='#888';
+        fetch('https://rrromegwhhkyjsfxvesu.supabase.co/functions/v1/validate-coupon',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({code:code,subscription_id:sid,email:email})
+        }).then(function(r){return r.json()}).then(function(data){
+            if(data.success){
+                // Coupon valid — update subscription_id to the new trial one
+                if(data.new_subscription_id) sid=data.new_subscription_id;
+                isTrial=true;
+                couponMsg.innerHTML='<strong style="color:#059669">'+code+'</strong> — '+(data.description||'2 months free!');
+                couponMsg.style.color='#059669';
+                couponInput.disabled=true;
+                couponBtn.disabled=true;
+                couponBtn.textContent='Applied';
+                // Update price display
+                document.getElementById('planPrice').innerHTML='₹0 <span>/month</span><br><span style="font-size:12px;color:#059669;font-weight:500">Free for 2 months, then ₹359/mo</span>';
+                document.getElementById('planBadge').textContent='FREE TRIAL';
+                btn.textContent='Start Free Trial';
+            } else {
+                couponMsg.textContent=data.error||'Invalid coupon code';
+                couponMsg.style.color='#dc2626';
+                couponBtn.disabled=false;
+                couponBtn.textContent='Apply';
+            }
+        }).catch(function(){
+            couponMsg.textContent='Could not validate. Try again.';
+            couponMsg.style.color='#dc2626';
+            couponBtn.disabled=false;
+            couponBtn.textContent='Apply';
+        });
+    };
+
+    btn.onclick=function(){
+        btn.disabled=true;
+        btn.innerHTML='<span class="spinner"></span>'+(isTrial?'Setting up...':'Processing...');
+        document.getElementById('statusMsg').textContent='';
+        var rzpOpts={
+            key:kid,subscription_id:sid,name:'Juskoe',
+            description:isTrial?'Pro Monthly — 2 Month Free Trial':d.name+' Subscription',
+            image:'https://juskoe.in/juskoe-logo.png',
+            prefill:{name:name,email:email},
+            theme:{color:'#2e2d2d'},
+            handler:function(response){
+                btn.classList.add('success');
+                btn.innerHTML='<span class="spinner"></span>Activating Pro...';
+                document.getElementById('statusMsg').textContent=isTrial?'Autopay set up! Activating your free trial...':'Payment received! Setting up your account...';
+                document.getElementById('statusMsg').className='status ok';
+                fetch('https://rrromegwhhkyjsfxvesu.supabase.co/functions/v1/confirm-payment',{
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({subscriptionId:sid,paymentId:response.razorpay_payment_id})
+                }).then(function(r){return r.json()}).then(function(data){
+                    if(data.success){
+                        btn.textContent=isTrial?'Free Trial Active!':'You are now Pro!';
+                        document.getElementById('statusMsg').textContent=isTrial?'2 months free! You can cancel anytime from Juskoe settings.':'Welcome to Juskoe Pro! You can close this page.';
+                    } else {
+                        btn.textContent=isTrial?'Trial Activated':'Payment Successful';
+                        document.getElementById('statusMsg').textContent='Pro will activate shortly. You can close this page.';
+                    }
+                }).catch(function(){
+                    btn.textContent=isTrial?'Trial Activated':'Payment Successful';
+                    document.getElementById('statusMsg').textContent='Pro will activate shortly. You can close this page.';
+                });
+            },
+            modal:{ondismiss:function(){
+                btn.disabled=false;
+                btn.textContent=isTrial?'Start Free Trial':'Pay '+d.total;
+                document.getElementById('statusMsg').textContent=isTrial?'Autopay setup cancelled.':'Payment cancelled.';
+                document.getElementById('statusMsg').className='status err';
+            }}
+        };
+        var rzp=new Razorpay(rzpOpts);
+        rzp.on('payment.failed',function(r){
+            btn.disabled=false;
+            btn.textContent=isTrial?'Retry Setup':'Retry Payment';
+            document.getElementById('statusMsg').textContent=r.error.description||'Payment failed.';
+            document.getElementById('statusMsg').className='status err';
+        });
+        rzp.open();
+    };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,455 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 99%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 262 30% 97%;
+    --secondary-foreground: 262 83% 30%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 262 20% 91%;
+    --input: 262 20% 91%;
+    --ring: 262 83% 58%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 262 30% 97%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 262 20% 91%;
+    --sidebar-ring: 262 83% 58%;
+
+    /* Brand tokens — juskoe electron app colors */
+    --purple: #7C3AED;
+    --purple-light: #ede9fe;
+    --purple-dark: #5b21b6;
+    --brown: #2e2d2d;
+    --surface: #f9f9f9;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', 'DM Sans', sans-serif;
+    color: #2e2d2d;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Inter', 'DM Sans', sans-serif;
+    color: #2e2d2d;
+  }
+}
+
+@layer utilities {
+  .font-serif-italic {
+    font-family: 'DM Serif Display', 'Times New Roman', 'Times', serif;
+    font-style: italic;
+    font-weight: 400;
+    line-height: 1.2;
+    overflow: visible;
+    padding-bottom: 0.08em;
+    display: inline-block;
+  }
+
+  /* Italic shimmer/shine effect */
+  @keyframes italic-shimmer {
+    0% {
+      background-position: 200% center;
+    }
+
+    100% {
+      background-position: -200% center;
+    }
+  }
+
+  .italic-shine {
+    background: linear-gradient(120deg, #7C3AED 0%, #7C3AED 35%, #c4b5fd 48%, #ede9fe 52%, #7C3AED 65%, #7C3AED 100%);
+    background-size: 250% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: italic-shimmer 5s ease-in-out infinite;
+  }
+
+  .font-display {
+    font-family: 'Inter', 'DM Sans', sans-serif;
+  }
+
+  /* Grid / tile background — purple lines */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(124, 58, 237, 0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 58, 237, 0.12) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .bg-grid-dark {
+    background-color: #2e2d2d;
+    background-image:
+      linear-gradient(rgba(124, 58, 237, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 58, 237, 0.08) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, #7C3AED, #a78bfa);
+  }
+
+  /* ── Purple text shine animation ── */
+  @keyframes shine {
+    0% {
+      background-position: 200% center;
+    }
+
+    100% {
+      background-position: -200% center;
+    }
+  }
+
+  .text-shine {
+    background: linear-gradient(120deg, #2e2d2d 0%, #2e2d2d 30%, #7C3AED 45%, #a78bfa 55%, #2e2d2d 70%, #2e2d2d 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shine 4s linear infinite;
+  }
+
+  .text-shine-purple {
+    background: linear-gradient(120deg, #7C3AED 0%, #7C3AED 30%, #c4b5fd 45%, #ede9fe 55%, #7C3AED 70%, #7C3AED 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shine 4s linear infinite;
+  }
+
+  /* Border shine animation — purple */
+  @keyframes border-shine {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .border-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .border-shine::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.5), transparent);
+    background-size: 200% 100%;
+    animation: border-shine 3s ease infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .shadow-premium {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(124, 58, 237, 0.08), 0 16px 40px rgba(0, 0, 0, 0.04);
+  }
+
+  .shadow-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 16px rgba(124, 58, 237, 0.06);
+  }
+
+  .shadow-purple {
+    box-shadow: 0 8px 32px rgba(124, 58, 237, 0.25), 0 2px 8px rgba(124, 58, 237, 0.15);
+  }
+
+  /* ── Seamless marquee CSS ── */
+  @keyframes marquee-css {
+    0% {
+      transform: translateX(0);
+    }
+
+    100% {
+      transform: translateX(-33.333%);
+    }
+  }
+
+  @keyframes marquee-reverse-css {
+    0% {
+      transform: translateX(-33.333%);
+    }
+
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  /* Smooth scroll */
+  .lenis {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto;
+  }
+
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+
+  /* Blur text animation */
+  @keyframes blurFadeIn {
+    from {
+      filter: blur(8px);
+      opacity: 0;
+      transform: translateY(20px);
+    }
+
+    to {
+      filter: blur(0px);
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Purple pill badge */
+  .badge-purple {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: rgba(124, 58, 237, 0.1);
+    border: 1px solid rgba(124, 58, 237, 0.2);
+    color: #7C3AED;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* Overlay pill demo */
+  .overlay-demo-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 18px;
+    min-width: 120px;
+    height: 40px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 2px solid #2e2d2d;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    font-size: 13px;
+    font-weight: 600;
+    color: #2e2d2d;
+    white-space: nowrap;
+  }
+
+  .overlay-pill-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 160px;
+    height: 48px;
+  }
+
+  /* Wave bars */
+  @keyframes wavePulse {
+
+    0%,
+    100% {
+      height: 4px;
+      opacity: 0.4;
+    }
+
+    50% {
+      height: 16px;
+      opacity: 1;
+    }
+  }
+
+  .wave-bar-demo {
+    width: 3px;
+    height: 6px;
+    background: #2e2d2d;
+    border-radius: 2px;
+    animation: wavePulse 0.8s ease-in-out infinite;
+  }
+
+  /* Hotkey badge */
+  .hotkey-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 10px;
+    border-radius: 6px;
+    background: #2e2d2d;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    font-family: 'Inter', monospace;
+  }
+
+  /* App icon */
+  .app-icon-wrap {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    flex-shrink: 0;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── Feature card: tile bg + gradient animation ── */
+  @keyframes gradientShift {
+    0% {
+      background-position: 0% 50%;
+    }
+
+    50% {
+      background-position: 100% 50%;
+    }
+
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .feature-card-animated {
+    position: relative;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid rgba(124, 58, 237, 0.12);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+  }
+
+  .feature-card-animated::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(135deg, rgba(124, 58, 237, 0.06) 0%, rgba(167, 139, 250, 0.06) 50%, rgba(124, 58, 237, 0.06) 100%),
+      linear-gradient(rgba(124, 58, 237, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 58, 237, 0.03) 1px, transparent 1px);
+    background-size: 200% 200%, 24px 24px, 24px 24px;
+    animation: gradientShift 6s ease infinite;
+    opacity: 0.7;
+    z-index: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .feature-card-animated:hover::before {
+    opacity: 1;
+  }
+
+  .feature-card-animated:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 20px 60px rgba(124, 58, 237, 0.15), 0 4px 16px rgba(124, 58, 237, 0.1);
+  }
+
+  .feature-card-animated>* {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Cursor glow for cards */
+  .cursor-glow {
+    position: absolute;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    mix-blend-mode: soft-light;
+  }
+
+  .feature-card-animated:hover .cursor-glow {
+    opacity: 1;
+  }
+
+  /* ── How It Works cursive path animation ── */
+  @keyframes drawPath {
+    from {
+      stroke-dashoffset: var(--path-length);
+    }
+
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes dotPulse {
+
+    0%,
+    100% {
+      r: 4;
+      opacity: 0.6;
+    }
+
+    50% {
+      r: 7;
+      opacity: 1;
+    }
+  }
+}

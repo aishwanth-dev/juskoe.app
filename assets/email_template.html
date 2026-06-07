@@ -1,0 +1,208 @@
+<!--
+  JUSKOE — OTP Verification Code
+  Paste into: Supabase Dashboard → Auth → Email Templates → Magic Link
+  
+  LOGO SETUP:
+  1. Go to Supabase Dashboard → Storage
+  2. Create a PUBLIC bucket called "assets"
+  3. Upload juskoe_logo.png from your project's assets/ folder
+  4. The logo will then appear in emails automatically
+
+  {{ .Token }} = 6-digit OTP code
+  {{ .Email }} = user's email address
+-->
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Juskoe — Verification Code</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet" />
+</head>
+
+<body style="margin:0;padding:0;-webkit-font-smoothing:antialiased;">
+
+    <!--
+  ╔══════════════════════════════════════════════════════════╗
+  ║  BACKGROUND — exact copy of app's global.css            ║
+  ║  Layer 1: white base                                    ║
+  ║  Layer 2: .bg-glow  (7 radial gradients)                ║
+  ║  Layer 3: .bg-tiles (40px grid)                         ║
+  ╚══════════════════════════════════════════════════════════╝
+-->
+
+    <!-- Outer wrapper — white base -->
+    <div style="margin:0;padding:0;min-height:100vh;background:#ffffff;">
+
+        <!-- Layer 1: Purple + yellow glow (exact values from .bg-glow in global.css) -->
+        <div style="
+  position:relative;
+  min-height:100vh;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.95) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 25%, rgba(255,250,180,0.35) 0%, transparent 40%),
+    radial-gradient(ellipse at 0% 0%, rgba(180,140,220,0.5) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 0%, rgba(190,150,230,0.45) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 100%, rgba(185,145,225,0.5) 0%, transparent 50%),
+    radial-gradient(ellipse at 0% 100%, rgba(175,135,215,0.45) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(210,180,240,0.3) 0%, transparent 70%);
+">
+
+            <!-- Layer 2: Tile grid (exact values from .bg-tiles in global.css) -->
+            <div style="
+  position:relative;
+  min-height:100vh;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size:40px 40px;
+">
+
+                <!-- Centering table -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="min-height:100vh;">
+                    <tr>
+                        <td align="center" valign="middle" style="padding:52px 20px 44px;">
+
+                            <!-- ╔═══════════════ CARD ═══════════════╗ -->
+                            <table width="420" cellpadding="0" cellspacing="0" border="0" style="
+    background:rgba(255,255,255,0.88);
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    border-radius:22px;
+    border:1px solid rgba(255,255,255,0.7);
+    box-shadow:0 12px 48px rgba(100,60,140,0.1), 0 2px 8px rgba(0,0,0,0.03);
+    overflow:hidden;
+  ">
+
+                                <!-- ── Titlebar (brown #2e2d2d, matches app) ── -->
+                                <tr>
+                                    <td align="center" style="background:#2e2d2d;padding:20px 32px;">
+                                        <table cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td style="vertical-align:middle;padding-right:10px;">
+                                                    <!--[if !mso]><!-->
+                                                    <img src="https://rrromegwhhkyjsfxvesu.supabase.co/storage/v1/object/public/assets/juskoe_logo.png"
+                                                        alt="" width="30" height="30"
+                                                        style="border-radius:8px;display:block;border:0;" />
+                                                    <!--<![endif]-->
+                                                    <!--[if mso]>
+          <div style="width:30px;height:30px;border-radius:8px;background:#b497c7;text-align:center;line-height:30px;">
+            <span style="font-family:Arial;font-size:15px;font-weight:bold;color:#fff;">J</span>
+          </div>
+          <![endif]-->
+                                                </td>
+                                                <td style="vertical-align:middle;">
+                                                    <span
+                                                        style="font-family:'Inter',Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">jus</span><span
+                                                        style="font-family:'Times New Roman',Georgia,serif;font-size:19px;font-weight:400;color:#ffffff;letter-spacing:-0.3px;font-style:italic;">koe.</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- ── Purple accent bar ── -->
+                                <tr>
+                                    <td
+                                        style="height:3px;background:linear-gradient(90deg, #c9a0dc, #e8d5f0, #c9a0dc);">
+                                    </td>
+                                </tr>
+
+                                <!-- ── Content heading ── -->
+                                <tr>
+                                    <td align="center" style="padding:36px 36px 0;">
+                                        <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:14px;">
+                                            <tr>
+                                                <td style="background:#f5f0fa;border-radius:12px;padding:5px 18px;">
+                                                    <span
+                                                        style="font-family:'Inter',Arial,sans-serif;font-size:10px;font-weight:700;color:#b497c7;text-transform:uppercase;letter-spacing:2.2px;">Verification
+                                                        Code</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p
+                                            style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:14px;color:#777;line-height:1.5;font-weight:400;">
+                                            Enter this code in the Juskoe app to sign in
+                                        </p>
+                                    </td>
+                                </tr>
+
+                                <!-- ── OTP Code Box ── -->
+                                <tr>
+                                    <td align="center" style="padding:28px 36px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="
+        background:linear-gradient(135deg,#faf8fc,#f5f0fa);
+        border:2px solid #ede8f2;
+        border-radius:16px;
+      ">
+                                            <tr>
+                                                <td align="center" style="padding:28px 16px;">
+                                                    <span
+                                                        style="font-family:'SF Mono','Fira Code','Courier New',monospace;font-size:42px;font-weight:800;letter-spacing:12px;color:#2e2d2d;">{{
+                                                        .Token }}</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- ── Expiry pill ── -->
+                                <tr>
+                                    <td align="center" style="padding:0 36px 28px;">
+                                        <table cellpadding="0" cellspacing="0" border="0"
+                                            style="background:#f8f5fb;border-radius:20px;border:1px solid #eee5f3;">
+                                            <tr>
+                                                <td style="padding:7px 18px;">
+                                                    <span
+                                                        style="font-family:'Inter',Arial,sans-serif;font-size:11px;color:#b497c7;font-weight:500;">⏱
+                                                        10 min &middot; Do not share this code</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- ── Divider ── -->
+                                <tr>
+                                    <td style="padding:0 36px;">
+                                        <div
+                                            style="height:1px;background:linear-gradient(90deg,transparent,#e5dfeb,transparent);">
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- ── Footer inside card ── -->
+                                <tr>
+                                    <td align="center" style="padding:18px 36px 24px;">
+                                        <p
+                                            style="margin:0;font-family:'Inter',Arial,sans-serif;font-size:11px;color:#bbb;line-height:1.8;">
+                                            Requested for <strong style="color:#8b7399;">{{ .Email }}</strong><br />
+                                            Didn't request this? Ignore this email.
+                                        </p>
+                                    </td>
+                                </tr>
+
+                            </table>
+                            <!-- ╚══════════════ END CARD ══════════════╝ -->
+
+                            <!-- Outside footer -->
+                            <p
+                                style="margin:28px 0 0;font-family:'Inter',Arial,sans-serif;font-size:11px;color:rgba(80,60,100,0.4);">
+                                &copy; 2025 <span style="font-weight:600;">jus</span><span
+                                    style="font-family:'Times New Roman',Georgia,serif;font-style:italic;">koe.</span>
+                                &middot; AI Voice Assistant
+                            </p>
+
+                        </td>
+                    </tr>
+                </table>
+
+            </div><!-- /tiles -->
+        </div><!-- /glow -->
+    </div><!-- /white base -->
+
+</body>
+
+</html>

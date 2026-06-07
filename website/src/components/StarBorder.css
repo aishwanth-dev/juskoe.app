@@ -1,0 +1,70 @@
+.star-border-container {
+    display: block;
+    width: 100%;
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.border-gradient-bottom {
+    position: absolute;
+    width: 400%;
+    height: 60%;
+    opacity: 1;
+    bottom: -11px;
+    right: -250%;
+    border-radius: 50%;
+    animation: star-movement-bottom 6s linear infinite alternate;
+    z-index: 0;
+}
+
+.border-gradient-top {
+    position: absolute;
+    opacity: 1;
+    width: 400%;
+    height: 60%;
+    top: -11px;
+    left: -250%;
+    border-radius: 50%;
+    animation: star-movement-top 6s linear infinite alternate;
+    z-index: 0;
+}
+
+.star-border-container .inner-content {
+    position: relative;
+    border: 1px solid rgba(124, 58, 237, 0.15);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #2e2d2d;
+    font-size: 16px;
+    text-align: center;
+    padding: 0;
+    border-radius: 16px;
+    z-index: 1;
+}
+
+/* Star border animation — slides the glow gradient across top + bottom edges */
+@keyframes star-movement-bottom {
+    0% {
+        transform: translateX(0%);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateX(-100%);
+        opacity: 1;
+    }
+}
+
+@keyframes star-movement-top {
+    0% {
+        transform: translateX(0%);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateX(100%);
+        opacity: 1;
+    }
+}

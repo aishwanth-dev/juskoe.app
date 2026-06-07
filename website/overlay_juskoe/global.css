@@ -1,0 +1,161 @@
+/* Global Styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    /* Colors - Light gray theme matching logo */
+    --color-sidebar: #f5f4f5;
+    --color-sidebar-border: #e8e6e8;
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f8f8f8;
+    --color-bg-hover: #f0f0f0;
+    --color-text: #1a1a1a;
+    --color-text-muted: #6b7280;
+    --color-border: #e5e5e5;
+    --color-border-light: #f0f0f0;
+    --color-primary: #2e2d2d;
+    --color-primary-dark: #1a1919;
+    --color-error: #ef4444;
+    --color-success: #10b981;
+    --color-accent: #2a2a2a;
+    --color-brown: #2e2d2d;
+
+    /* Border Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+
+    /* Fonts */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--font-sans);
+    background: #ffffff;
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* App Wrapper */
+.app-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    position: relative;
+    background: #ffffff;
+}
+
+/* Background Layer 1: Soft purple + yellow glow */
+.bg-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, 0.95) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 25%, rgba(255, 250, 180, 0.35) 0%, transparent 40%),
+        radial-gradient(ellipse at 0% 0%, rgba(180, 140, 220, 0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 100% 0%, rgba(190, 150, 230, 0.45) 0%, transparent 50%),
+        radial-gradient(ellipse at 100% 100%, rgba(185, 145, 225, 0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 0% 100%, rgba(175, 135, 215, 0.45) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(210, 180, 240, 0.3) 0%, transparent 70%);
+}
+
+/* Background Layer 2: Tile grid (starts below titlebar) */
+.bg-tiles {
+    position: absolute;
+    top: 52px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+/* App Body - Below titlebar, now full width with no sidebar */
+.app-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}
+
+/* Main Content - full width now, no sidebar offset */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    overflow: hidden;
+}
+
+/* Page Container - extra bottom padding so content doesn't hide behind dock */
+.page-container {
+    flex: 1;
+    padding: 32px 48px 100px;
+    overflow-y: auto;
+}
+
+/* Global Input Styles */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+textarea,
+select {
+    border-radius: var(--radius-sm) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* Selection */
+::selection {
+    background: rgba(46, 45, 45, 0.2);
+}
+
+/* Focus - remove default browser outline, components handle their own */
+:focus-visible {
+    outline: none;
+}
+
+button {
+    font-family: inherit;
+    cursor: pointer;
+}
