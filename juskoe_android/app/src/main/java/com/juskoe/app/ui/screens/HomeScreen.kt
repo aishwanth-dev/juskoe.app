@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -107,17 +108,10 @@ fun HomeScreen(
     val userName = authState.profile?.fullName?.split(" ")?.firstOrNull() ?: ""
     val greeting = remember(userName) { getGreeting(userName) }
 
-    // History from Room DB
-    val history = remember { mutableStateListOf<GeneratedContentEntry>() }
-    LaunchedEffect(Unit) {
-        onRefreshUsage()
-        try {
-            val db = JuskoeDatabase.getInstance(context)
-            val items = db.generatedContentDao().getRecent()
-            history.clear()
-            history.addAll(items)
-        } catch (_: Exception) {}
-    }
+    // History from Room DB — observed reactively so keyboard output appears instantly
+    val db = remember { JuskoeDatabase.getInstance(context) }
+    val history by db.generatedContentDao().getRecentFlow().collectAsState(initial = emptyList())
+    LaunchedEffect(Unit) { onRefreshUsage() }
 
     // Determine plan — check cached plan immediately to avoid flash
     val cachedPlan = remember {

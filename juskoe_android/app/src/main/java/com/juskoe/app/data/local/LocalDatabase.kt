@@ -179,6 +179,10 @@ interface GeneratedContentDao {
     @Query("SELECT * FROM generated_content ORDER BY createdAt DESC LIMIT 50")
     suspend fun getRecent(): List<GeneratedContentEntry>
 
+    /** Reactive stream for live UI updates (Home history). */
+    @Query("SELECT * FROM generated_content ORDER BY createdAt DESC LIMIT 50")
+    fun getRecentFlow(): Flow<List<GeneratedContentEntry>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: GeneratedContentEntry): Long
 

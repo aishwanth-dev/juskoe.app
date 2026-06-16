@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -74,7 +75,6 @@ data class SnippetEntry(
 @Composable
 fun SnippetsScreen() {
     var searchQuery by remember { mutableStateOf("") }
-    val snippets = remember { mutableStateListOf<SnippetEntry>() }
     var showDialog by remember { mutableStateOf(false) }
     var editingSnippet by remember { mutableStateOf<SnippetEntry?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -88,15 +88,10 @@ fun SnippetsScreen() {
         return prefs.getBoolean("cloud_sync", false) && SupabaseManager.isAuthenticated()
     }
 
-    // Load from Room DB on mount
-    LaunchedEffect(Unit) {
-        try {
-            val local = db.snippetDao().getAllOnce()
-            snippets.clear()
-            snippets.addAll(local.map {
-                SnippetEntry(id = it.id.toString(), key = it.key, expansion = it.content, cloudId = it.cloudId)
-            })
-        } catch (_: Exception) {}
+    // Observe Room directly — single source of truth, live updates
+    val dbSnippets by db.snippetDao().getAll().collectAsState(initial = emptyList())
+    val snippets = dbSnippets.map {
+        SnippetEntry(id = it.id.toString(), key = it.key, expansion = it.content, cloudId = it.cloudId)
     }
 
     val filtered = snippets.filter {
@@ -157,13 +152,10 @@ fun SnippetsScreen() {
                                                 id = localId, key = key, title = key, content = content, cloudId = editingSnippet!!.cloudId
                                             ))
                                         }
-                                        val idx = snippets.indexOfFirst { it.id == editingSnippet!!.id }
-                                        if (idx >= 0) snippets[idx] = editingSnippet!!.copy(key = key, expansion = content)
                                     } else {
-                                        val newId = db.snippetDao().insert(com.juskoe.app.data.local.SnippetEntry(
+                                        db.snippetDao().insert(com.juskoe.app.data.local.SnippetEntry(
                                             key = key, title = key, content = content
                                         ))
-                                        snippets.add(SnippetEntry(id = newId.toString(), key = key, expansion = content))
                                     }
                                     if (isCloudSyncEnabled()) {
                                         try { SupabaseManager.upsertSnippet(key, key, content) } catch (_: Exception) {}
@@ -230,16 +222,12 @@ fun SnippetsScreen() {
                                     if (isCloudSyncEnabled()) {
                                         val cloud = SupabaseManager.getCloudSnippets()
                                         for (c in cloud) {
-                                            db.snippetDao().insert(com.juskoe.app.data.local.SnippetEntry(
+                                            // Use dedup insert (fixes duplicate-on-refresh bug)
+                                            db.snippetDao().insertIfCloudIdAbsent(
                                                 key = c.key, title = c.title, content = c.content, category = c.category, cloudId = c.id
-                                            ))
+                                            )
                                         }
                                     }
-                                    val local = db.snippetDao().getAllOnce()
-                                    snippets.clear()
-                                    snippets.addAll(local.map {
-                                        SnippetEntry(id = it.id.toString(), key = it.key, expansion = it.content, cloudId = it.cloudId)
-                                    })
                                 } catch (_: Exception) {}
                                 isLoading = false
                             }
@@ -399,7 +387,6 @@ fun SnippetsScreen() {
                             snippet = snippet,
                             onEdit = { editingSnippet = it; showDialog = true },
                             onDelete = {
-                                snippets.removeIf { s -> s.id == it.id }
                                 scope.launch {
                                     try {
                                         val localId = it.id.toLongOrNull()

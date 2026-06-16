@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,7 +76,6 @@ data class DictEntry(
 @Composable
 fun DictionaryScreen() {
     var searchQuery by remember { mutableStateOf("") }
-    val entries = remember { mutableStateListOf<DictEntry>() }
     var showDialog by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<DictEntry?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -91,21 +91,15 @@ fun DictionaryScreen() {
 
     val db = remember { JuskoeDatabase.getInstance(context) }
 
-    // Load from Room DB on mount, then optionally pull from cloud
-    LaunchedEffect(Unit) {
-        try {
-            // Local first
-            val local = db.dictDao().getAllOnce()
-            entries.clear()
-            entries.addAll(local.map {
-                DictEntry(
-                    id = it.id.toString(),
-                    shortcut = it.word,
-                    replacement = it.correction,
-                    cloudId = it.cloudId,
-                )
-            })
-        } catch (_: Exception) {}
+    // Observe Room directly — keyboard writes & edits reflect instantly (no manual reload)
+    val dbEntries by db.dictDao().getAll().collectAsState(initial = emptyList())
+    val entries = dbEntries.map {
+        DictEntry(
+            id = it.id.toString(),
+            shortcut = it.word,
+            replacement = it.correction,
+            cloudId = it.cloudId,
+        )
     }
 
     val filtered = entries.filter {
@@ -168,14 +162,11 @@ fun DictionaryScreen() {
                                                 id = localId, word = word, correction = actualCorrection, cloudId = editingEntry!!.cloudId
                                             ))
                                         }
-                                        val idx = entries.indexOfFirst { it.id == editingEntry!!.id }
-                                        if (idx >= 0) entries[idx] = editingEntry!!.copy(shortcut = word, replacement = actualCorrection)
                                     } else {
                                         // Insert new
-                                        val newId = db.dictDao().insert(com.juskoe.app.data.local.DictEntry(
+                                        db.dictDao().insert(com.juskoe.app.data.local.DictEntry(
                                             word = word, correction = actualCorrection
                                         ))
-                                        entries.add(DictEntry(id = newId.toString(), shortcut = word, replacement = actualCorrection))
                                     }
                                     // Cloud sync if enabled
                                     if (isCloudSyncEnabled()) {
@@ -244,7 +235,8 @@ fun DictionaryScreen() {
                             scope.launch {
                                 try {
                                     if (isCloudSyncEnabled()) {
-                                        // Pull from cloud → merge into Room (skip existing)
+                                        // Pull from cloud → merge into Room (skip existing).
+                                        // The Room Flow re-emits automatically after insert.
                                         val cloud = SupabaseManager.getCloudDictionary()
                                         for (c in cloud) {
                                             db.dictDao().insertIfCloudIdAbsent(
@@ -252,12 +244,6 @@ fun DictionaryScreen() {
                                             )
                                         }
                                     }
-                                    // Reload from Room
-                                    val local = db.dictDao().getAllOnce()
-                                    entries.clear()
-                                    entries.addAll(local.map {
-                                        DictEntry(id = it.id.toString(), shortcut = it.word, replacement = it.correction, cloudId = it.cloudId)
-                                    })
                                 } catch (_: Exception) {}
                                 isLoading = false
                             }
@@ -384,7 +370,6 @@ fun DictionaryScreen() {
                             entry = entry,
                             onEdit = { editingEntry = it; showDialog = true },
                             onDelete = {
-                                entries.removeIf { e -> e.id == it.id }
                                 scope.launch {
                                     try {
                                         val localId = it.id.toLongOrNull()
