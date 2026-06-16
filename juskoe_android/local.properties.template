@@ -1,0 +1,10 @@
+# Copy this file to `local.properties` (gitignored) and fill in the values.
+# Only client-safe values go here. Server secrets live in Supabase Edge Function env.
+
+sdk.dir=/absolute/path/to/Android/Sdk
+
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+GOOGLE_WEB_CLIENT_ID=
+GOOGLE_ANDROID_CLIENT_ID=
+EDGE_FUNCTION_URL=

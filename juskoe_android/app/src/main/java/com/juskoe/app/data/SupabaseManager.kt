@@ -81,6 +81,11 @@ object SupabaseManager {
         return client.auth.currentUserOrNull()?.id
     }
 
+    /** Current access token (JWT) for authorizing Edge Function calls. */
+    fun currentAccessToken(): String? {
+        return client.auth.currentSessionOrNull()?.accessToken
+    }
+
     fun currentUserEmail(): String? {
         return client.auth.currentUserOrNull()?.email
     }

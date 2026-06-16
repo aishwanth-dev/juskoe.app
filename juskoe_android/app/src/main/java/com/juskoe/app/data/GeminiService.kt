@@ -3,29 +3,28 @@ package com.juskoe.app.data
 import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
- * JUSKOE Gemini API Service
- * Mirrors aiProcessor.ts — calls Gemini directly via REST API
- * Same prompts, same model (gemini-2.5-flash-lite)
+ * JUSKOE AI Service.
  *
- * KEY DIFFERENCE FROM PREVIOUS VERSION:
- * - No more runBlocking — snippets/dict are passed as parameters
- * - Caller (VoicePipeline) fetches snippets/dict from local Room DB
+ * Builds the AI/Grammar system prompts (mirrors aiProcessor.ts) and sends the
+ * request to the `ai-proxy` Supabase Edge Function, which holds the Gemini key
+ * server-side. The raw Gemini key is never bundled in the app.
  */
 object GeminiService {
 
@@ -33,7 +32,12 @@ object GeminiService {
 
     private val httpClient = HttpClient(Android) {
         install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
+            io.ktor.serialization.kotlinx.json.json(Json { ignoreUnknownKeys = true })
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30_000
+            connectTimeoutMillis = 10_000
+            socketTimeoutMillis = 30_000
         }
     }
 
@@ -139,56 +143,52 @@ Output: Corrected text only. No explanations. No meta."""
     }
 
     // ============================================
-    // Call Gemini API
+    // Call AI via the secure Edge Function proxy (ai-proxy)
+    // The raw Gemini key never ships in the app — the proxy holds it
+    // server-side (env var KJUS) and enforces auth. Includes timeout + retry.
     // ============================================
 
-    suspend fun callGemini(systemPrompt: String, userPrompt: String): Result<String> {
-        return try {
-            val url = "${Config.GEMINI_API_URL}/${Config.GEMINI_MODEL}:generateContent?key=${Config.GEMINI_API_KEY}"
+    suspend fun callGemini(systemPrompt: String, userPrompt: String, mode: String = "ai"): Result<String> {
+        val token = SupabaseManager.currentAccessToken()
+            ?: return Result.failure(AiAuthRequiredException())
 
-            val requestBody = buildJsonObject {
-                put("contents", buildJsonArray {
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("parts", buildJsonArray {
-                            add(buildJsonObject { put("text", userPrompt) })
-                        })
-                    })
-                })
-                put("systemInstruction", buildJsonObject {
-                    put("parts", buildJsonArray {
-                        add(buildJsonObject { put("text", systemPrompt) })
-                    })
-                })
-                put("generationConfig", buildJsonObject {
-                    put("maxOutputTokens", 1000)
-                    put("temperature", 0.3)
-                })
+        val maxAttempts = 3
+        var lastError: Exception? = null
+
+        repeat(maxAttempts) { attempt ->
+            try {
+                val requestBody = buildJsonObject {
+                    put("systemPrompt", systemPrompt)
+                    put("userPrompt", userPrompt)
+                    put("mode", mode)
+                    put("maxTokens", if (mode == "grammar") 256 else 1024)
+                }
+
+                val response = httpClient.post(Config.AI_PROXY_URL) {
+                    contentType(ContentType.Application.Json)
+                    header("Authorization", "Bearer $token")
+                    header("apikey", Config.SUPABASE_ANON_KEY)
+                    setBody(requestBody.toString())
+                }
+
+                val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                val success = json["success"]?.jsonPrimitive?.boolean ?: false
+                if (!success) {
+                    val err = json["error"]?.jsonPrimitive?.content ?: "AI service error"
+                    // 4xx-style errors won't be fixed by retrying — fail fast.
+                    return Result.failure(Exception(err))
+                }
+                val output = json["output"]?.jsonPrimitive?.content?.trim().orEmpty()
+                if (output.isEmpty()) return Result.failure(Exception("Empty AI response"))
+                return Result.success(output)
+            } catch (e: Exception) {
+                // Network/timeout — retry with exponential backoff
+                lastError = e
+                Log.e(TAG, "callGemini attempt ${attempt + 1}/$maxAttempts failed", e)
+                if (attempt < maxAttempts - 1) delay(400L * (attempt + 1))
             }
-
-            val response = httpClient.post(url) {
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            val body = response.bodyAsText()
-            val json = Json.parseToJsonElement(body).jsonObject
-
-            // Extract text from Gemini response
-            val text = json["candidates"]
-                ?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("content")
-                ?.jsonObject?.get("parts")
-                ?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("text")
-                ?.jsonPrimitive?.content
-                ?: throw Exception("No text in Gemini response")
-
-            Result.success(text.trim())
-        } catch (e: Exception) {
-            Log.e(TAG, "callGemini failed", e)
-            Result.failure(e)
         }
+        return Result.failure(lastError ?: Exception("AI request failed"))
     }
 
     // ============================================
@@ -212,6 +212,10 @@ Output: Corrected text only. No explanations. No meta."""
             else -> getAIModePrompt(snippets, dictWords, selectedLanguages)
         }
 
-        return callGemini(systemPrompt, transcript)
+        return callGemini(systemPrompt, transcript, mode)
     }
 }
+
+/** Thrown when an AI call is attempted without a signed-in session (proxy requires auth). */
+class AiAuthRequiredException :
+    Exception("Sign in to use AI features")

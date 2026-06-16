@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +8,20 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+// ============================================
+// Secret/config loading — values come from a GITIGNORED local.properties
+// (or environment variables in CI). NOTHING secret is hardcoded in source.
+// Only client-safe values belong here: Supabase URL, anon key, OAuth client
+// IDs, and the Edge Function base URL. The raw Gemini key NEVER ships in the
+// APK — AI calls go through the `ai-proxy` Supabase Edge Function.
+// ============================================
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+fun cfg(key: String, default: String = ""): String =
+    localProps.getProperty(key) ?: System.getenv(key) ?: default
 
 repositories {
     flatDir {
@@ -26,6 +43,14 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
         }
+
+        // --- Injected config (from gitignored local.properties / CI env) ---
+        buildConfigField("String", "SUPABASE_URL", "\"${cfg("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${cfg("SUPABASE_ANON_KEY")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${cfg("GOOGLE_WEB_CLIENT_ID")}\"")
+        buildConfigField("String", "GOOGLE_ANDROID_CLIENT_ID", "\"${cfg("GOOGLE_ANDROID_CLIENT_ID")}\"")
+        // Base URL for Supabase Edge Functions, e.g. https://<ref>.supabase.co/functions/v1
+        buildConfigField("String", "EDGE_FUNCTION_URL", "\"${cfg("EDGE_FUNCTION_URL")}\"")
     }
 
     // Don't compress model files in assets
@@ -55,6 +80,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

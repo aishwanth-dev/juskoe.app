@@ -1,29 +1,31 @@
 package com.juskoe.app.data
 
+import com.juskoe.app.BuildConfig
+
 /**
  * JUSKOE Configuration
- * Mirrors shared/config.ts from Electron app
+ *
+ * SECURITY: No secrets are hardcoded here. Client-safe values (Supabase URL,
+ * anon key, OAuth client IDs, Edge Function URL) are injected at build time
+ * from a gitignored `local.properties` via BuildConfig. The raw Gemini API key
+ * is NOT present in the app — AI requests are proxied through the `ai-proxy`
+ * Supabase Edge Function, which holds the key server-side.
  */
 object Config {
-    // Supabase
-    const val SUPABASE_URL = "https://rrromegwhhkyjsfxvesu.supabase.co"
-    const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJycm9tZWd3aGhreWpzZnh2ZXN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMjM1NDIsImV4cCI6MjA4Njc5OTU0Mn0.m0bJCOLoBFCMnFFhb2SaKoYandShMLxJ90etIDewErE"
+    // Supabase (client-safe: anon key is public; RLS protects data)
+    val SUPABASE_URL = BuildConfig.SUPABASE_URL
+    val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
-    // Gemini
+    // Gemini model name (the API key lives only in the Edge Function env: KJUS)
     const val GEMINI_MODEL = "gemini-2.5-flash-lite"
-    const val GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
-    // Google OAuth (Web Client ID from Google Cloud Console)
-    const val GOOGLE_WEB_CLIENT_ID = "497248294732-dp8q6gkk48tm7sfknekc850b28me1vll.apps.googleusercontent.com"
+    // Supabase Edge Functions base URL (e.g. https://<ref>.supabase.co/functions/v1)
+    val EDGE_FUNCTION_URL = BuildConfig.EDGE_FUNCTION_URL
+    val AI_PROXY_URL = "$EDGE_FUNCTION_URL/ai-proxy"
 
-    // Google OAuth (Android Client ID — must match SHA-1 fingerprint)
-    const val GOOGLE_ANDROID_CLIENT_ID = "497248294732-8ieqv4qvpdo0hforjf9seljld9o0gosr.apps.googleusercontent.com"
-
-    // API key (same obfuscation as Electron app)
-    val GEMINI_API_KEY: String by lazy {
-        val k = intArrayOf(65,73,122,97,83,121,65,82,120,72,116,89,54,70,49,116,110,82,71,49,90,115,121,117,55,67,68,55,51,97,86,102,107,76,71,89,117,57,85)
-        String(k.map { it.toChar() }.toCharArray())
-    }
+    // Google OAuth client IDs (not secrets)
+    val GOOGLE_WEB_CLIENT_ID = BuildConfig.GOOGLE_WEB_CLIENT_ID
+    val GOOGLE_ANDROID_CLIENT_ID = BuildConfig.GOOGLE_ANDROID_CLIENT_ID
 
     // Plan Limits
     object FreePlan {
