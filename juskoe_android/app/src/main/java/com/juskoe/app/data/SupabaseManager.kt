@@ -155,14 +155,20 @@ object SupabaseManager {
         }
     }
 
-    suspend fun upsertDictWord(word: String, correction: String) {
-        val userId = currentUserId() ?: return
-        client.postgrest.from("cloud_dictionary")
-            .upsert(
-                CloudDictionary(userId = userId, word = word.lowercase(), correction = correction)
-            ) {
-                onConflict = "user_id,word"
-            }
+    suspend fun upsertDictWord(word: String, correction: String): String? {
+        val userId = currentUserId() ?: return null
+        return try {
+            client.postgrest.from("cloud_dictionary")
+                .upsert(
+                    CloudDictionary(userId = userId, word = word.lowercase(), correction = correction)
+                ) {
+                    onConflict = "user_id,word"
+                }
+                .decodeSingleOrNull<CloudDictionary>()
+                ?.id
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun deleteDictWord(id: String) {
@@ -184,14 +190,20 @@ object SupabaseManager {
         }
     }
 
-    suspend fun upsertSnippet(key: String, title: String, content: String, category: String = "general") {
-        val userId = currentUserId() ?: return
-        client.postgrest.from("cloud_snippets")
-            .upsert(
-                CloudSnippet(userId = userId, key = key.lowercase(), title = title, content = content, category = category)
-            ) {
-                onConflict = "user_id,key"
-            }
+    suspend fun upsertSnippet(key: String, title: String, content: String, category: String = "general"): String? {
+        val userId = currentUserId() ?: return null
+        return try {
+            client.postgrest.from("cloud_snippets")
+                .upsert(
+                    CloudSnippet(userId = userId, key = key.lowercase(), title = title, content = content, category = category)
+                ) {
+                    onConflict = "user_id,key"
+                }
+                .decodeSingleOrNull<CloudSnippet>()
+                ?.id
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun deleteSnippet(id: String) {
@@ -213,12 +225,18 @@ object SupabaseManager {
         }
     }
 
-    suspend fun addCloudNote(text: String, tags: List<String> = emptyList()) {
-        val userId = currentUserId() ?: return
-        client.postgrest.from("cloud_notes")
-            .insert(
-                CloudNote(userId = userId, text = text, tags = tags)
-            )
+    suspend fun addCloudNote(text: String, tags: List<String> = emptyList()): String? {
+        val userId = currentUserId() ?: return null
+        return try {
+            client.postgrest.from("cloud_notes")
+                .insert(
+                    CloudNote(userId = userId, text = text, tags = tags)
+                )
+                .decodeSingleOrNull<CloudNote>()
+                ?.id
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun deleteCloudNote(id: String) {

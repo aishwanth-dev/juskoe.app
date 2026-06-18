@@ -91,6 +91,12 @@ interface DictDao {
 
     @Query("SELECT * FROM dictionary WHERE word LIKE '%' || :query || '%' OR correction LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<DictEntry>>
+
+    @Query("SELECT * FROM dictionary WHERE cloudId = :cloudId LIMIT 1")
+    suspend fun findByCloudId(cloudId: String): DictEntry?
+
+    @Query("SELECT * FROM dictionary WHERE word = :word COLLATE NOCASE LIMIT 1")
+    suspend fun findByWord(word: String): DictEntry?
 }
 
 @Dao
@@ -119,6 +125,12 @@ interface SnippetDao {
 
     @Query("SELECT * FROM snippets WHERE key LIKE '%' || :query || '%' OR title LIKE '%' || :query || '%'")
     fun search(query: String): Flow<List<SnippetEntry>>
+
+    @Query("SELECT * FROM snippets WHERE cloudId = :cloudId LIMIT 1")
+    suspend fun findByCloudId(cloudId: String): SnippetEntry?
+
+    @Query("SELECT * FROM snippets WHERE key = :key COLLATE NOCASE LIMIT 1")
+    suspend fun findByKey(key: String): SnippetEntry?
 }
 
 @Dao
@@ -144,6 +156,12 @@ interface NoteDao {
 
     @Query("DELETE FROM notes WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("SELECT * FROM notes WHERE cloudId = :cloudId LIMIT 1")
+    suspend fun findByCloudId(cloudId: String): NoteEntry?
+
+    @Query("SELECT * FROM notes WHERE text = :text LIMIT 1")
+    suspend fun findByText(text: String): NoteEntry?
 }
 
 @Dao

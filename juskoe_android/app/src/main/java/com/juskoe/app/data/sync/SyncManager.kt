@@ -5,8 +5,18 @@ import com.juskoe.app.data.SupabaseManager
 import com.juskoe.app.data.local.*
 
 /**
- * Cloud sync manager for PRO users only.
- * Push local → Supabase, Pull cloud → local.
+ * Cloud sync manager for PRO users.
+ *
+ * Strategy:
+ *  - Push: every local row with cloudId == null is upserted to Supabase; the
+ *    REAL returned UUID is stored back as cloudId (no more "synced" placeholder).
+ *  - Pull: each cloud row is matched to a local row by cloudId first, then by
+ *    natural key (word / key / text). If none exists it is inserted with the
+ *    real cloudId; if one exists it is updated (cloud-wins conflict strategy)
+ *    and tagged with the cloudId. This prevents the duplicate explosion the
+ *    old implementation caused.
+ *  - Order: push first (so local-only items reach the cloud), then pull (to
+ *    reconcile other devices' changes and backfill cloudIds).
  */
 class SyncManager(private val repo: LocalRepository) {
 
@@ -15,22 +25,19 @@ class SyncManager(private val repo: LocalRepository) {
     }
 
     // ============================================
-    // Push local → cloud
+    // Push local → cloud (store the real UUID)
     // ============================================
 
     suspend fun pushDictionary() {
         try {
-            val items = repo.getAllDictOnce()
-            items.filter { it.cloudId == null }.forEach { entry ->
+            repo.getAllDictOnce().filter { it.cloudId == null }.forEach { entry ->
                 try {
-                    SupabaseManager.upsertDictWord(entry.word, entry.correction)
-                    // Mark as synced (we don't get cloud ID back easily, just mark it)
-                    repo.updateDict(entry.copy(cloudId = "synced"))
+                    val cloudId = SupabaseManager.upsertDictWord(entry.word, entry.correction)
+                    if (cloudId != null) repo.updateDict(entry.copy(cloudId = cloudId))
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to push dict: ${entry.word}", e)
                 }
             }
-            Log.d(TAG, "Dictionary push complete")
         } catch (e: Exception) {
             Log.e(TAG, "pushDictionary failed", e)
         }
@@ -38,16 +45,14 @@ class SyncManager(private val repo: LocalRepository) {
 
     suspend fun pushSnippets() {
         try {
-            val items = repo.getAllSnippetsOnce()
-            items.filter { it.cloudId == null }.forEach { entry ->
+            repo.getAllSnippetsOnce().filter { it.cloudId == null }.forEach { entry ->
                 try {
-                    SupabaseManager.upsertSnippet(entry.key, entry.title, entry.content, entry.category)
-                    repo.updateSnippet(entry.copy(cloudId = "synced"))
+                    val cloudId = SupabaseManager.upsertSnippet(entry.key, entry.title, entry.content, entry.category)
+                    if (cloudId != null) repo.updateSnippet(entry.copy(cloudId = cloudId))
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to push snippet: ${entry.key}", e)
                 }
             }
-            Log.d(TAG, "Snippets push complete")
         } catch (e: Exception) {
             Log.e(TAG, "pushSnippets failed", e)
         }
@@ -55,37 +60,39 @@ class SyncManager(private val repo: LocalRepository) {
 
     suspend fun pushNotes() {
         try {
-            val items = repo.getAllNotesOnce()
-            items.filter { it.cloudId == null }.forEach { entry ->
+            repo.getAllNotesOnce().filter { it.cloudId == null }.forEach { entry ->
                 try {
                     val tags = if (entry.tags.isBlank()) emptyList() else entry.tags.split(",")
-                    SupabaseManager.addCloudNote(entry.text, tags)
-                    repo.updateNote(entry.copy(cloudId = "synced"))
+                    val cloudId = SupabaseManager.addCloudNote(entry.text, tags)
+                    if (cloudId != null) repo.updateNote(entry.copy(cloudId = cloudId))
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to push note: ${entry.id}", e)
                 }
             }
-            Log.d(TAG, "Notes push complete")
         } catch (e: Exception) {
             Log.e(TAG, "pushNotes failed", e)
         }
     }
 
     suspend fun pushAll() {
-        pushDictionary()
-        pushSnippets()
-        pushNotes()
+        pushDictionary(); pushSnippets(); pushNotes()
     }
 
     // ============================================
-    // Pull cloud → local
+    // Pull cloud → local (dedup + cloud-wins)
     // ============================================
 
     suspend fun pullDictionary() {
         try {
             val cloudItems = SupabaseManager.getCloudDictionary()
             cloudItems.forEach { cloud ->
-                repo.addDict(cloud.word, cloud.correction)
+                if (cloud.id.isBlank()) return@forEach
+                val existing = repo.findDictByCloudId(cloud.id) ?: repo.findDictByWord(cloud.word)
+                if (existing == null) {
+                    repo.insertDict(DictEntry(word = cloud.word, correction = cloud.correction, cloudId = cloud.id))
+                } else if (existing.cloudId != cloud.id || existing.correction != cloud.correction) {
+                    repo.updateDict(existing.copy(correction = cloud.correction, cloudId = cloud.id))
+                }
             }
             Log.d(TAG, "Dictionary pull complete: ${cloudItems.size} items")
         } catch (e: Exception) {
@@ -97,7 +104,25 @@ class SyncManager(private val repo: LocalRepository) {
         try {
             val cloudItems = SupabaseManager.getCloudSnippets()
             cloudItems.forEach { cloud ->
-                repo.addSnippet(cloud.key, cloud.title, cloud.content, cloud.category)
+                if (cloud.id.isBlank()) return@forEach
+                val existing = repo.findSnippetByCloudId(cloud.id) ?: repo.findSnippetByKey(cloud.key)
+                if (existing == null) {
+                    repo.insertSnippet(
+                        SnippetEntry(
+                            key = cloud.key, title = cloud.title, content = cloud.content,
+                            category = cloud.category, cloudId = cloud.id,
+                        )
+                    )
+                } else if (existing.cloudId != cloud.id || existing.content != cloud.content ||
+                    existing.title != cloud.title || existing.category != cloud.category
+                ) {
+                    repo.updateSnippet(
+                        existing.copy(
+                            title = cloud.title, content = cloud.content,
+                            category = cloud.category, cloudId = cloud.id,
+                        )
+                    )
+                }
             }
             Log.d(TAG, "Snippets pull complete: ${cloudItems.size} items")
         } catch (e: Exception) {
@@ -109,7 +134,15 @@ class SyncManager(private val repo: LocalRepository) {
         try {
             val cloudItems = SupabaseManager.getCloudNotes()
             cloudItems.forEach { cloud ->
-                repo.addNote(cloud.text, cloud.tags)
+                if (cloud.id.isBlank()) return@forEach
+                val existing = repo.findNoteByCloudId(cloud.id) ?: repo.findNoteByText(cloud.text)
+                if (existing == null) {
+                    repo.insertNote(
+                        NoteEntry(text = cloud.text, tags = cloud.tags.joinToString(","), cloudId = cloud.id)
+                    )
+                } else if (existing.cloudId != cloud.id) {
+                    repo.updateNote(existing.copy(cloudId = cloud.id))
+                }
             }
             Log.d(TAG, "Notes pull complete: ${cloudItems.size} items")
         } catch (e: Exception) {
@@ -118,17 +151,21 @@ class SyncManager(private val repo: LocalRepository) {
     }
 
     suspend fun pullAll() {
-        pullDictionary()
-        pullSnippets()
-        pullNotes()
+        pullDictionary(); pullSnippets(); pullNotes()
     }
 
     // ============================================
-    // Full sync (pull then push)
+    // Full sync — push local-only first, then reconcile from cloud
     // ============================================
 
-    suspend fun syncAll() {
-        pullAll()
-        pushAll()
+    suspend fun syncAll(): Boolean {
+        return try {
+            pushAll()
+            pullAll()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "syncAll failed", e)
+            false
+        }
     }
 }

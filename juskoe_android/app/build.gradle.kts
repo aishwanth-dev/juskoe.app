@@ -112,6 +112,12 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
+    // WorkManager (background cloud sync for Pro users)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // Security (EncryptedSharedPreferences for session/sensitive flags)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     // Supabase BOM + modules (v3 uses auth-kt, not gotrue-kt)
     val supabaseBom = platform("io.github.jan-tennert.supabase:bom:3.1.3")
     implementation(supabaseBom)

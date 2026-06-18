@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.juskoe.app.data.*
+import com.juskoe.app.data.sync.SyncScheduler
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -169,6 +170,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 setLoggedIn(false)
                 prefs.edit().remove(KEY_CACHED_PLAN).apply()
+                try { SyncScheduler.cancelAll(getApplication()) } catch (_: Exception) {}
                 SupabaseManager.signOut()
                 // Session status flow resets state; force it immediately too
                 _authState.value = AuthUiState(loading = false)
@@ -214,6 +216,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         prefs.edit().putString(KEY_CACHED_PLAN, profile.plan).apply()
                     } catch (_: Exception) {}
+                    // Kick off a cloud sync for Pro users now that we're signed in.
+                    if (profile.plan == "pro" || profile.plan == "enterprise") {
+                        try { SyncScheduler.requestSyncNow(getApplication()) } catch (_: Exception) {}
+                    }
                 }
                 return
             } catch (e: Exception) {
