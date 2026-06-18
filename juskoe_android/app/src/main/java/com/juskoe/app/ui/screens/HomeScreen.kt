@@ -324,7 +324,6 @@ fun HomeScreen(
                 HistoryCard(
                     entry = item,
                     onDelete = {
-                        history.removeIf { h -> h.id == item.id }
                         scope.launch {
                             try {
                                 JuskoeDatabase.getInstance(context).generatedContentDao().deleteById(item.id)
