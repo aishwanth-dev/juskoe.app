@@ -23,6 +23,14 @@ val localProps = Properties().apply {
 fun cfg(key: String, default: String = ""): String =
     localProps.getProperty(key) ?: System.getenv(key) ?: default
 
+// Release signing — keystore details come from a GITIGNORED keystore.properties.
+// If absent (e.g. CI without signing secrets), the release block stays unsigned.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+val hasKeystore = keystoreProps.getProperty("storeFile") != null
+
 repositories {
     flatDir {
         dirs("libs")
@@ -58,6 +66,17 @@ android {
         noCompress += listOf("onnx", "txt", "bin")
     }
 
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -66,6 +85,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

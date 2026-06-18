@@ -238,7 +238,12 @@ abstract class JuskoeDatabase : RoomDatabase() {
                     context.applicationContext,
                     JuskoeDatabase::class.java,
                     "juskoe_db"
-                ).fallbackToDestructiveMigration().build().also { INSTANCE = it }
+                )
+                    // Migration safety: never silently wipe data on UPGRADE. Add a
+                    // Migration(n, n+1) here whenever the schema/version changes.
+                    // Destructive fallback is allowed only on downgrade (dev rollback).
+                    .fallbackToDestructiveMigrationOnDowngrade()
+                    .build().also { INSTANCE = it }
             }
         }
     }

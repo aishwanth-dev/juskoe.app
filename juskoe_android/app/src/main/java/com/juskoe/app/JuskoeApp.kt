@@ -4,6 +4,8 @@ import android.app.Application
 import com.juskoe.app.data.local.JuskoeDatabase
 import com.juskoe.app.data.local.LocalRepository
 import com.juskoe.app.data.sync.SyncScheduler
+import com.juskoe.app.util.CrashHandler
+import com.juskoe.app.util.JLog
 
 class JuskoeApp : Application() {
 
@@ -13,6 +15,10 @@ class JuskoeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Production diagnostics first, before anything can crash.
+        CrashHandler.install(this)
+        JLog.init(this)
 
         // Initialize Room database + local repository
         JuskoeDatabase.getInstance(this)

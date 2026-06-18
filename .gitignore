@@ -18,6 +18,9 @@ juskoe_android/.kotlin/
 juskoe_android/app/build/
 juskoe_android/build/
 juskoe_android/local.properties
+juskoe_android/keystore.properties
+juskoe_android/*.jks
+juskoe_android/*.keystore
 juskoe_android/*.txt
 *.apk
 *.aab
