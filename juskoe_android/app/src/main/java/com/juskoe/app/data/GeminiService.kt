@@ -175,6 +175,7 @@ Output: Corrected text only. No explanations. No meta."""
                 val success = json["success"]?.jsonPrimitive?.boolean ?: false
                 if (!success) {
                     val err = json["error"]?.jsonPrimitive?.content ?: "AI service error"
+                    AnalyticsManager.trackError(mode, err)
                     // 4xx-style errors won't be fixed by retrying — fail fast.
                     return Result.failure(Exception(err))
                 }
@@ -188,7 +189,9 @@ Output: Corrected text only. No explanations. No meta."""
                 if (attempt < maxAttempts - 1) delay(400L * (attempt + 1))
             }
         }
-        return Result.failure(lastError ?: Exception("AI request failed"))
+        return Result.failure(lastError ?: Exception("AI request failed")).also {
+            AnalyticsManager.trackError(mode, lastError?.message ?: "AI request failed")
+        }
     }
 
     // ============================================

@@ -288,6 +288,8 @@ class FloatingService : Service() {
     }
 
     private fun deliver(text: String) {
+        // Analytics
+        com.juskoe.app.data.AnalyticsManager.trackFloatUsed(activeMode)
         // Always copy to clipboard as a reliable fallback.
         try {
             val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager

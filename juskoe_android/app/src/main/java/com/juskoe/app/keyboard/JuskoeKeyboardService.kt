@@ -485,6 +485,7 @@ class JuskoeKeyboardService :
                         try {
                             val db = com.juskoe.app.data.local.JuskoeDatabase.getInstance(this@JuskoeKeyboardService)
                             db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = noteText))
+                            com.juskoe.app.data.AnalyticsManager.trackNoteCreated()
                         } catch (e: Exception) {
                             Log.e(TAG, "Failed to save note", e)
                         }
@@ -792,6 +793,7 @@ class JuskoeKeyboardService :
                             try {
                                 val db = com.juskoe.app.data.local.JuskoeDatabase.getInstance(this@JuskoeKeyboardService)
                                 db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = noteText))
+                                com.juskoe.app.data.AnalyticsManager.trackNoteCreated()
                             } catch (e: Exception) {
                                 Log.e(TAG, "Failed to save note", e)
                             }
@@ -1036,6 +1038,12 @@ class JuskoeKeyboardService :
             }
             val current = db.usageCacheDao().get(key)?.value ?: 0
             db.usageCacheDao().set(com.juskoe.app.data.local.UsageCache(key = key, value = current + 1))
+
+            // Analytics: track feature completion (latency not available here; tracked as 0)
+            when (mode) {
+                "ai" -> com.juskoe.app.data.AnalyticsManager.trackAiComplete(0, 0, 0)
+                "grammar" -> com.juskoe.app.data.AnalyticsManager.trackGrammarComplete(0, 0, 0)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "incrementLocalUsage failed (non-fatal)", e)
         }

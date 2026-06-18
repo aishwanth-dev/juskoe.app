@@ -60,7 +60,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     when (status) {
                         is SessionStatus.Authenticated -> {
                             Log.d(TAG, "Session authenticated, refreshing state")
+                            val wasNew = !wasLoggedIn()
                             setLoggedIn(true)
+                            if (wasNew) {
+                                com.juskoe.app.data.AnalyticsManager.trackSignup()
+                            }
                             try {
                                 refreshState()
                             } catch (e: Exception) {

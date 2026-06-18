@@ -170,6 +170,7 @@ fun NotesScreen() {
                         scope.launch {
                             try {
                                 db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = text))
+                                com.juskoe.app.data.AnalyticsManager.trackNoteCreated()
                                 if (isCloudSyncEnabled()) {
                                     try { SupabaseManager.addCloudNote(text) } catch (_: Exception) {}
                                 }

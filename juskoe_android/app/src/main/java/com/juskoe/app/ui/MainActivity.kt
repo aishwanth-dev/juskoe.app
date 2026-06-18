@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.juskoe.app.data.AnalyticsManager
 import com.juskoe.app.data.SupabaseManager
 import com.juskoe.app.ui.navigation.JuskoeNavHost
 import com.juskoe.app.ui.theme.JuskoeTheme
@@ -45,6 +46,9 @@ class MainActivity : ComponentActivity() {
 
         // Request all needed permissions on first launch
         requestNeededPermissions()
+
+        // Analytics: track app open (cold start)
+        AnalyticsManager.trackAppOpen()
 
         setContent {
             val darkMode = getSharedPreferences("juskoe_settings", MODE_PRIVATE)
