@@ -163,6 +163,7 @@ object SupabaseManager {
                     CloudDictionary(userId = userId, word = word.lowercase(), correction = correction)
                 ) {
                     onConflict = "user_id,word"
+                    select()
                 }
                 .decodeSingleOrNull<CloudDictionary>()
                 ?.id
@@ -198,6 +199,7 @@ object SupabaseManager {
                     CloudSnippet(userId = userId, key = key.lowercase(), title = title, content = content, category = category)
                 ) {
                     onConflict = "user_id,key"
+                    select()
                 }
                 .decodeSingleOrNull<CloudSnippet>()
                 ?.id
@@ -231,7 +233,9 @@ object SupabaseManager {
             client.postgrest.from("cloud_notes")
                 .insert(
                     CloudNote(userId = userId, text = text, tags = tags)
-                )
+                ) {
+                    select()
+                }
                 .decodeSingleOrNull<CloudNote>()
                 ?.id
         } catch (e: Exception) {

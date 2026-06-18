@@ -77,7 +77,15 @@ class FloatingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startAsForeground()
+        try {
+            startAsForeground()
+        } catch (e: Exception) {
+            // On Android 14+ a microphone FGS can't start without RECORD_AUDIO.
+            // Degrade gracefully instead of crashing.
+            Log.e(TAG, "startForeground failed — stopping Float service", e)
+            stopSelf()
+            return
+        }
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         pipeline = VoicePipeline(this)
         recorder = AudioRecorder(this)

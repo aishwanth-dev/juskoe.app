@@ -170,7 +170,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 setLoggedIn(false)
                 prefs.edit().remove(KEY_CACHED_PLAN).apply()
-                try { SyncScheduler.cancelAll(getApplication()) } catch (_: Exception) {}
+                try { SyncScheduler.cancelAll(getApplication<Application>()) } catch (_: Exception) {}
                 SupabaseManager.signOut()
                 // Session status flow resets state; force it immediately too
                 _authState.value = AuthUiState(loading = false)
@@ -218,7 +218,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     } catch (_: Exception) {}
                     // Kick off a cloud sync for Pro users now that we're signed in.
                     if (profile.plan == "pro" || profile.plan == "enterprise") {
-                        try { SyncScheduler.requestSyncNow(getApplication()) } catch (_: Exception) {}
+                        try { SyncScheduler.requestSyncNow(getApplication<Application>()) } catch (_: Exception) {}
                     }
                 }
                 return
