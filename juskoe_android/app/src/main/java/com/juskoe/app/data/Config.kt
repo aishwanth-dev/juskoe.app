@@ -17,7 +17,7 @@ object Config {
     val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
     // Gemini model name (the API key lives only in the Edge Function env: KJUS)
-    const val GEMINI_MODEL = "gemini-2.5-flash-lite"
+    const val GEMINI_MODEL = "gemini-2.5-flash"
 
     // Supabase Edge Functions base URL (e.g. https://<ref>.supabase.co/functions/v1)
     val EDGE_FUNCTION_URL = BuildConfig.EDGE_FUNCTION_URL
