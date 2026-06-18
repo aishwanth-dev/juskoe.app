@@ -73,6 +73,7 @@ import com.juskoe.app.data.Config
 import com.juskoe.app.data.SupabaseManager
 import com.juskoe.app.data.UsageSummary
 import com.juskoe.app.data.UserProfile
+import com.juskoe.app.floating.FloatManager
 import com.juskoe.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -437,6 +438,42 @@ private fun SystemTab() {
             subtitle = "Vibrate on key press",
             checked = isHapticFeedback,
             onCheckedChange = { isHapticFeedback = it; writeBool(context, "haptic_feedback", it) },
+        )
+
+        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+
+        SectionHeader("Float JUSKOE")
+
+        var isFloat by remember {
+            mutableStateOf(FloatManager.isEnabledPref(context) && FloatManager.canDrawOverlay(context))
+        }
+        ToggleItem(
+            icon = Icons.Filled.Tune,
+            title = "Float JUSKOE",
+            subtitle = "A floating mic button that works over any app/keyboard",
+            checked = isFloat,
+            onCheckedChange = { enabled ->
+                if (enabled) {
+                    if (FloatManager.enable(context)) {
+                        isFloat = true
+                    } else {
+                        // Needs the "display over other apps" permission first.
+                        isFloat = false
+                        context.startActivity(FloatManager.overlayPermissionIntent(context))
+                    }
+                } else {
+                    FloatManager.disable(context)
+                    isFloat = false
+                }
+            },
+        )
+        SettingItem(
+            icon = Icons.Filled.Tune,
+            title = "Float text insertion",
+            subtitle = "Enable JUSKOE accessibility so results paste into any app",
+            onClick = {
+                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            },
         )
 
         HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))

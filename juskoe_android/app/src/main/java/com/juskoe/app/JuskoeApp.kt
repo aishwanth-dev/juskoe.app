@@ -22,6 +22,16 @@ class JuskoeApp : Application() {
         // Periodic background reconciliation + an immediate catch-up on launch.
         SyncScheduler.ensurePeriodicSync(this)
         SyncScheduler.requestSyncNow(this)
+
+        // Restore Float JUSKOE overlay if the user had it enabled and still has
+        // the overlay permission.
+        try {
+            if (com.juskoe.app.floating.FloatManager.isEnabledPref(this) &&
+                com.juskoe.app.floating.FloatManager.canDrawOverlay(this)
+            ) {
+                com.juskoe.app.floating.FloatingService.start(this)
+            }
+        } catch (_: Exception) {}
     }
 
     companion object {
