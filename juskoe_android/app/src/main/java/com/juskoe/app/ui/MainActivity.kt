@@ -47,7 +47,9 @@ class MainActivity : ComponentActivity() {
         requestNeededPermissions()
 
         setContent {
-            JuskoeTheme {
+            val darkMode = getSharedPreferences("juskoe_settings", MODE_PRIVATE)
+                .getBoolean("dark_mode", false)
+            JuskoeTheme(darkTheme = darkMode) {
                 val authState by authViewModel.authState.collectAsState()
                 val usageState by authViewModel.usageState.collectAsState()
 

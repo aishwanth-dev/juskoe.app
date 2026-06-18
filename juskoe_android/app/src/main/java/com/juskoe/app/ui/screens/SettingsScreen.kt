@@ -419,7 +419,12 @@ private fun SystemTab() {
             title = "Dark Mode",
             subtitle = "Use dark color scheme for the app",
             checked = isDarkMode,
-            onCheckedChange = { isDarkMode = it; writeBool(context, "dark_mode", it) },
+            onCheckedChange = {
+                isDarkMode = it
+                writeBool(context, "dark_mode", it)
+                // Apply immediately by recreating the activity with the new theme.
+                (context as? android.app.Activity)?.recreate()
+            },
         )
 
         HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
