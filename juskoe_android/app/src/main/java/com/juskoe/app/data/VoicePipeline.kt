@@ -380,6 +380,23 @@ class VoicePipeline(private val context: Context) {
         return stt.transcribe(pcmData)
     }
 
+    /**
+     * Notes mode: transcribe only (no Gemini, no credits). Applies dictionary
+     * corrections + snippet expansion so saved notes match what the user meant.
+     * Returns "" when no speech was detected.
+     */
+    suspend fun transcribeForNote(pcmData: ByteArray): String = withContext(Dispatchers.IO) {
+        try {
+            val raw = runSTT(pcmData)
+            if (raw.isBlank()) return@withContext ""
+            val (snippets, dictWords) = loadLocalContext()
+            preprocessTranscript(raw, snippets, dictWords)
+        } catch (e: Exception) {
+            Log.e(TAG, "transcribeForNote failed", e)
+            ""
+        }
+    }
+
     // ============================================
     // Direct Text Processing (no STT needed)
     // ============================================

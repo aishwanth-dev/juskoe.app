@@ -471,6 +471,33 @@ class JuskoeKeyboardService :
 
             serviceScope.launch {
                 try {
+                    // Notes mode: transcribe-only → save to Notes table (no AI, no credits).
+                    if (modeStr == "notes") {
+                        val noteText = pipeline.transcribeForNote(pcmData)
+                        if (noteText.isBlank()) {
+                            keyboardState.value = keyboardState.value.copy(
+                                voiceState = VoiceState.IDLE,
+                                activeMode = VoiceMode.NONE,
+                                errorMessage = "No speech detected",
+                            )
+                            return@launch
+                        }
+                        try {
+                            val db = com.juskoe.app.data.local.JuskoeDatabase.getInstance(this@JuskoeKeyboardService)
+                            db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = noteText))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to save note", e)
+                        }
+                        currentInputConnection?.commitText(noteText, 1)
+                        copyToClipboard(noteText)
+                        keyboardState.value = keyboardState.value.copy(
+                            voiceState = VoiceState.IDLE,
+                            activeMode = VoiceMode.NONE,
+                            errorMessage = "Saved to Notes",
+                        )
+                        return@launch
+                    }
+
                     // Credit gate — check if free user is at limit
                     if (!canUseCredit(modeStr)) {
                         keyboardState.value = keyboardState.value.copy(
@@ -751,6 +778,33 @@ class JuskoeKeyboardService :
 
                 serviceScope.launch {
                     try {
+                        // Notes mode: transcribe-only → save to Notes (no AI, no credits).
+                        if (modeStr == "notes") {
+                            val noteText = pipeline.transcribeForNote(pcmData)
+                            if (noteText.isBlank()) {
+                                keyboardState.value = keyboardState.value.copy(
+                                    voiceState = VoiceState.IDLE,
+                                    activeMode = VoiceMode.NONE,
+                                    errorMessage = "No speech detected",
+                                )
+                                return@launch
+                            }
+                            try {
+                                val db = com.juskoe.app.data.local.JuskoeDatabase.getInstance(this@JuskoeKeyboardService)
+                                db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = noteText))
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to save note", e)
+                            }
+                            currentInputConnection?.commitText(noteText, 1)
+                            copyToClipboard(noteText)
+                            keyboardState.value = keyboardState.value.copy(
+                                voiceState = VoiceState.IDLE,
+                                activeMode = VoiceMode.NONE,
+                                errorMessage = "Saved to Notes",
+                            )
+                            return@launch
+                        }
+
                         // Credit gate
                         if (!canUseCredit(modeStr)) {
                             keyboardState.value = keyboardState.value.copy(
