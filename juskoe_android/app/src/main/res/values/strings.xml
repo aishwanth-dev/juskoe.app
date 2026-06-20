@@ -4,4 +4,5 @@
     <string name="keyboard_name">JUSKOE Keyboard</string>
     <string name="subtype_en_US">English (US)</string>
     <string name="accessibility_desc">Lets Float JUSKOE insert dictated text into the field you\'re typing in, so it works with any keyboard. JUSKOE does not read or collect your screen content.</string>
+    <string name="offline_badge">offline</string>
 </resources>

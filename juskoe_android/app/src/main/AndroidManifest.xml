@@ -65,7 +65,7 @@
         <!-- Accessibility service for inserting text into any focused field -->
         <service
             android:name=".floating.FloatingAccessibilityService"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

@@ -3,27 +3,29 @@ package com.juskoe.app.floating
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.graphics.drawable.ColorDrawable
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.Button
-import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.juskoe.app.R
+import com.juskoe.app.data.AnalyticsManager
 import com.juskoe.app.data.AudioRecorder
+import com.juskoe.app.data.GeminiService
 import com.juskoe.app.data.VoicePipeline
 import com.juskoe.app.data.local.JuskoeDatabase
 import com.juskoe.app.data.local.NoteEntry
@@ -31,22 +33,30 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
+import kotlinx.coroutines.withContext
 
 /**
- * Float JUSKOE — a draggable overlay button that works over ANY app/keyboard.
- * Tap to expand into AI / Grammar / Notes. Tap a mode to start recording, tap
- * again to stop and process. Result is inserted via the accessibility service
- * (falling back to the clipboard) and, for Notes, saved to the Notes table.
+ * JUSKOE Cloud overlay service. Hosts the [JuskoeCloudView] in a system overlay
+ * window, drives voice workflows (AI / Grammar / Offline / Notes), transforms,
+ * and snippets, and inserts results directly via the accessibility service
+ * (no clipboard). Caret-aware positioning is fed by [FloatingAccessibilityService].
  */
 class FloatingService : Service() {
 
     companion object {
         private const val TAG = "FloatingService"
-        private const val CHANNEL_ID = "juskoe_float"
+        private const val CHANNEL_ID = "juskoe_cloud"
         private const val NOTIF_ID = 1001
+
+        const val MODE_AI = "ai"
+        const val MODE_GRAMMAR = "grammar"
+        const val MODE_OFFLINE = "offline"
+        const val MODE_NOTES = "notes"
+
+        @Volatile
+        var instance: FloatingService? = null
+            private set
 
         fun start(ctx: Context) {
             val i = Intent(ctx, FloatingService::class.java)
@@ -60,71 +70,58 @@ class FloatingService : Service() {
     }
 
     private lateinit var wm: WindowManager
-    private var rootView: View? = null
-    private var params: WindowManager.LayoutParams? = null
+    private var cloudView: JuskoeCloudView? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private var pipeline: VoicePipeline? = null
     private var recorder: AudioRecorder? = null
 
-    private var panel: LinearLayout? = null
-    private var statusText: TextView? = null
-    private var expanded = false
     private var recording = false
-    private var activeMode = "ai"
+    private var activeMode = MODE_AI
+
+    // For retry: last audio + mode, and last AI output for transforms.
+    private var lastPcm: ByteArray? = null
+    private var lastMode: String = MODE_AI
+    private var lastOutput: String = ""
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         try {
             startAsForeground()
         } catch (e: Exception) {
-            // On Android 14+ a microphone FGS can't start without RECORD_AUDIO.
-            // Degrade gracefully instead of crashing.
-            Log.e(TAG, "startForeground failed — stopping Float service", e)
-            stopSelf()
-            return
+            Log.e(TAG, "startForeground failed — stopping", e)
+            stopSelf(); return
         }
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         pipeline = VoicePipeline(this)
         recorder = AudioRecorder(this)
         scope.launch(Dispatchers.IO) { try { pipeline?.initSTT() } catch (_: Exception) {} }
         try {
-            addOverlay()
+            addCloud()
         } catch (e: Exception) {
-            Log.e(TAG, "addOverlay failed", e)
+            Log.e(TAG, "addCloud failed", e)
             stopSelf()
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
-    private fun startAsForeground() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val mgr = getSystemService(NotificationManager::class.java)
-            if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
-                mgr.createNotificationChannel(
-                    NotificationChannel(CHANNEL_ID, "Float JUSKOE", NotificationManager.IMPORTANCE_MIN)
-                )
-            }
-        }
-        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Float JUSKOE active")
-            .setContentText("Tap the floating button to dictate anywhere")
-            .setSmallIcon(R.drawable.juskoe_logo)
-            .setOngoing(true)
-            .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIF_ID, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
-        } else {
-            startForeground(NOTIF_ID, notif)
-        }
+    override fun onDestroy() {
+        instance = null
+        try { cloudView?.let { wm.removeView(it) } } catch (_: Exception) {}
+        try { recorder?.stopRecording() } catch (_: Exception) {}
+        try { pipeline?.release() } catch (_: Exception) {}
+        try { scope.cancel() } catch (_: Exception) {}
+        cloudView = null; pipeline = null; recorder = null
+        super.onDestroy()
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    // ── Overlay window ──
 
-    private fun addOverlay() {
+    private fun addCloud() {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else
@@ -134,183 +131,320 @@ class FloatingService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = dp(280)
-        }
-        params = lp
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.END
+            // Default safe position (top-right area) until a caret is tracked.
+            x = resources.displayMetrics.widthPixels - dpToPx(56) - dpToPx(8)
+            y = dpToPx(120)
         }
 
-        val panelView = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            visibility = View.GONE
-            setBackgroundColor(0xEE1B1B1B.toInt())
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-        }
-        val status = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            textSize = 12f
-            text = "Choose a mode"
-        }
-        panelView.addView(status)
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(modeButton("AI", "ai"))
-        row.addView(modeButton("G", "grammar"))
-        row.addView(modeButton("N", "notes"))
-        panelView.addView(row)
-
-        val icon = ImageView(this).apply {
-            setImageResource(R.drawable.juskoe_logo)
-            val s = dp(52)
-            layoutParams = LinearLayout.LayoutParams(s, s)
-        }
-        setupDragAndTap(icon, lp)
-
-        root.addView(panelView)
-        root.addView(icon)
-
-        rootView = root
-        panel = panelView
-        statusText = status
-        wm.addView(root, lp)
-    }
-
-    private fun modeButton(label: String, mode: String): Button =
-        Button(this).apply {
-            text = label
-            setOnClickListener { onModeTap(mode) }
-        }
-
-    private fun setupDragAndTap(view: View, lp: WindowManager.LayoutParams) {
-        var initX = 0
-        var initY = 0
-        var touchX = 0f
-        var touchY = 0f
-        var moved = false
-        view.setOnTouchListener { _, e ->
-            when (e.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initX = lp.x; initY = lp.y
-                    touchX = e.rawX; touchY = e.rawY
-                    moved = false
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = (e.rawX - touchX).toInt()
-                    val dy = (e.rawY - touchY).toInt()
-                    if (abs(dx) > dp(8) || abs(dy) > dp(8)) moved = true
-                    lp.x = initX + dx
-                    lp.y = initY + dy
-                    try { wm.updateViewLayout(rootView, lp) } catch (_: Exception) {}
-                    true
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (!moved) toggleExpand()
-                    true
-                }
-                else -> false
+        val cloud = JuskoeCloudView(this).apply {
+            interactionListener = object : JuskoeCloudView.CloudInteractionListener {
+                override fun onSingleTap() = handleCloudSingleTap()
+                override fun onDoubleTap() = handleCloudDoubleTap()
+                override fun onLongPress() = handleCloudLongPress()
+                override fun onRetry() = handleRetry()
             }
         }
+        cloudView = cloud
+        wm.addView(cloud, lp)
     }
 
-    private fun toggleExpand() {
-        expanded = !expanded
-        panel?.visibility = if (expanded) View.VISIBLE else View.GONE
-        if (!expanded && recording) {
-            // Cancel an in-progress recording when collapsing.
-            try { recorder?.stopRecording() } catch (_: Exception) {}
-            recording = false
+    /** Reposition the cloud to top-right of the caret/field; called by accessibility. */
+    fun positionCloud(caretX: Float, caretY: Float, fieldRect: Rect) {
+        val cloud = cloudView ?: return
+        val size = dpToPx(JuskoeCloudView.CLOUD_SIZE_DP)
+        val margin = dpToPx(12)
+        val screenW = resources.displayMetrics.widthPixels
+        val screenH = resources.displayMetrics.heightPixels
+        val statusBar = getStatusBarHeight()
+
+        var x = caretX + margin
+        var y = caretY - size - margin
+        if (y < statusBar + dpToPx(8)) y = caretY + margin            // not enough space above → below
+        if (x + size > screenW - dpToPx(8)) x = (screenW - size - dpToPx(8)).toFloat()
+        if (x < dpToPx(4)) x = dpToPx(4).toFloat()
+        if (y + size > screenH - dpToPx(8)) y = (screenH - size - dpToPx(8)).toFloat()
+        if (y < statusBar) y = statusBar.toFloat()
+
+        val lp = cloud.layoutParams as? WindowManager.LayoutParams ?: return
+        lp.x = x.toInt(); lp.y = y.toInt()
+        try { wm.updateViewLayout(cloud, lp) } catch (_: Exception) {}
+    }
+
+    fun showCloud() {
+        val cloud = cloudView ?: return
+        if (cloud.alpha < 0.5f) cloud.animate().alpha(1f).setDuration(150).start()
+    }
+
+    fun hideCloud() {
+        val cloud = cloudView ?: return
+        // Don't hide mid-interaction.
+        if (recording || cloud.getCurrentState() != JuskoeCloudView.CloudState.IDLE) return
+        if (cloud.alpha > 0.5f) cloud.animate().alpha(0f).setDuration(150).start()
+    }
+
+    // ── Interaction handlers ──
+
+    private fun handleCloudSingleTap() {
+        if (recording) stopListeningAndProcess() else startListening(MODE_AI)
+    }
+
+    private fun handleCloudDoubleTap() {
+        if (recording) stopListeningAndProcess() else startListening(MODE_GRAMMAR)
+    }
+
+    private fun handleRetry() {
+        val pcm = lastPcm ?: return
+        cloudView?.setState(JuskoeCloudView.CloudState.PROCESSING)
+        scope.launch { runAndDeliver(pcm, lastMode) }
+    }
+
+    // ── Voice workflow ──
+
+    private fun startListening(mode: String) {
+        val rec = recorder ?: return
+        if (!rec.hasPermission()) {
+            Toast.makeText(this, "Enable mic permission in the JUSKOE app", Toast.LENGTH_SHORT).show()
+            return
         }
-    }
-
-    private fun onModeTap(mode: String) {
-        if (!recording) {
-            activeMode = mode
-            if (recorder?.hasPermission() != true) {
-                statusText?.text = "Enable mic permission in the JUSKOE app"
-                return
-            }
-            val started = try { recorder?.startRecording() ?: false } catch (_: Exception) { false }
-            if (started) {
-                recording = true
-                statusText?.text = "● Listening… tap ${labelFor(mode)} to stop"
-            } else {
-                statusText?.text = "Mic unavailable"
-            }
+        activeMode = mode
+        cloudView?.setState(JuskoeCloudView.CloudState.LISTENING)
+        cloudView?.setOfflineBadge(mode == MODE_OFFLINE || !isNetworkAvailable())
+        rec.amplitudeListener = { amp -> scope.launch { cloudView?.setAmplitude(amp) } }
+        val started = try { rec.startRecording() } catch (_: Exception) { false }
+        if (started) {
+            recording = true
         } else {
             recording = false
-            val pcm = try { recorder?.stopRecording() } catch (_: Exception) { null } ?: return
-            statusText?.text = "Processing…"
-            scope.launch {
-                val text = process(pcm, activeMode)
-                if (!text.isNullOrBlank()) {
-                    deliver(text)
-                    statusText?.text = "Done ✓"
-                } else {
-                    statusText?.text = "Nothing captured — try again"
-                }
-                delay(1300)
-                expanded = false
-                panel?.visibility = View.GONE
-                statusText?.text = "Choose a mode"
-            }
+            cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
         }
     }
 
-    private fun labelFor(mode: String) = when (mode) {
-        "ai" -> "AI"; "grammar" -> "G"; "notes" -> "N"; else -> "mode"
+    private fun stopListeningAndProcess() {
+        val rec = recorder ?: return
+        if (!recording) return
+        recording = false
+        rec.amplitudeListener = null
+        val pcm = try { rec.stopRecording() } catch (_: Exception) { null } ?: return
+        lastPcm = pcm; lastMode = activeMode
+        cloudView?.setState(JuskoeCloudView.CloudState.PROCESSING)
+        scope.launch { runAndDeliver(pcm, activeMode) }
     }
 
-    private suspend fun process(pcm: ByteArray, mode: String): String? {
+    /** Run STT/AI for [mode] off the main thread, then deliver + set cloud state. */
+    private suspend fun runAndDeliver(pcm: ByteArray, mode: String) {
+        val output = try { runMode(pcm, mode) } catch (e: Exception) {
+            Log.e(TAG, "runMode failed", e); null
+        }
+        if (output.isNullOrBlank()) {
+            cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
+            AnalyticsManager.trackError("cloud", "no_output_$mode")
+            return
+        }
+        if (mode != MODE_NOTES) lastOutput = output
+        val inserted = deliver(output)
+        cloudView?.setState(
+            if (inserted) JuskoeCloudView.CloudState.SUCCESS else JuskoeCloudView.CloudState.ERROR
+        )
+    }
+
+    private suspend fun runMode(pcm: ByteArray, mode: String): String? {
         val p = pipeline ?: return null
-        return if (mode == "notes") {
-            val t = p.transcribeForNote(pcm)
-            if (t.isBlank()) null else { saveNote(t); t }
-        } else {
-            val r = p.processRecording(pcm, mode)
-            if (r.success) r.processedText else null
+        return when (mode) {
+            MODE_NOTES -> {
+                val t = p.transcribeForNote(pcm)
+                if (t.isBlank()) null else { saveNote(t); t }
+            }
+            MODE_OFFLINE -> {
+                val t = p.transcribeForNote(pcm)
+                if (t.isBlank()) null else "$t (offline)"
+            }
+            else -> {
+                val r = p.processRecording(pcm, mode)
+                if (r.success) r.processedText else null
+            }
         }
     }
 
     private suspend fun saveNote(text: String) {
         try {
             JuskoeDatabase.getInstance(this).noteDao().insert(NoteEntry(text = text))
+            AnalyticsManager.trackNoteCreated()
         } catch (e: Exception) {
             Log.e(TAG, "saveNote failed", e)
         }
     }
 
-    private fun deliver(text: String) {
-        // Analytics
-        com.juskoe.app.data.AnalyticsManager.trackFloatUsed(activeMode)
-        // Always copy to clipboard as a reliable fallback.
-        try {
-            val cm = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("JUSKOE", text))
-        } catch (_: Exception) {}
-        // Try to insert directly into the focused field via accessibility.
-        val injected = try {
-            FloatingAccessibilityService.instance?.insertText(text) ?: false
-        } catch (_: Exception) { false }
-        if (!injected) {
-            Toast.makeText(this, "Copied — long-press the field to paste", Toast.LENGTH_SHORT).show()
+    // ── Transforms (operate on the last AI output) ──
+
+    private fun transformLastOutput(promptPrefix: String) {
+        if (lastOutput.isBlank()) {
+            Toast.makeText(this, "Generate something first, then transform it", Toast.LENGTH_SHORT).show()
+            return
+        }
+        cloudView?.setState(JuskoeCloudView.CloudState.PROCESSING)
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                GeminiService.processVoiceInput("$promptPrefix\n\n$lastOutput", MODE_AI)
+            }
+            if (result.isSuccess) {
+                val out = result.getOrThrow()
+                lastOutput = out
+                val inserted = deliver(out)
+                cloudView?.setState(if (inserted) JuskoeCloudView.CloudState.SUCCESS else JuskoeCloudView.CloudState.ERROR)
+            } else {
+                cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
+                AnalyticsManager.trackError("cloud", "transform_failed")
+            }
         }
     }
 
-    override fun onDestroy() {
-        try { rootView?.let { wm.removeView(it) } } catch (_: Exception) {}
-        try { pipeline?.release() } catch (_: Exception) {}
-        try { scope.cancel() } catch (_: Exception) {}
-        rootView = null
-        pipeline = null
-        recorder = null
-        super.onDestroy()
+    // ── Direct insertion (NO clipboard) ──
+
+    /** Insert via accessibility. Returns true if inserted into a focused field. */
+    private fun deliver(text: String): Boolean {
+        val acc = FloatingAccessibilityService.instance
+        if (acc == null) {
+            Toast.makeText(
+                this,
+                "Enable JUSKOE Cloud in Accessibility settings for direct insertion",
+                Toast.LENGTH_LONG,
+            ).show()
+            AnalyticsManager.trackError("insertion", "accessibility_unavailable")
+            return false
+        }
+        val ok = acc.insertText(text)
+        if (!ok) AnalyticsManager.trackError("insertion", "no_focused_field")
+        return ok
+    }
+
+    // ── Long-press menu ──
+
+    private fun handleCloudLongPress() {
+        val cloud = cloudView ?: return
+        val items: List<Pair<String, () -> Unit>> = listOf(
+            "AI Mode" to { startListening(MODE_AI) },
+            "Grammar Mode" to { startListening(MODE_GRAMMAR) },
+            "Offline Mode" to { startListening(MODE_OFFLINE) },
+            "Rewrite" to { transformLastOutput("Rewrite this more clearly and professionally:") },
+            "Snippets" to { showSnippetsSubmenu() },
+            "Professional" to { transformLastOutput("Make this message sound professional:") },
+            "Friendly" to { transformLastOutput("Make this message sound friendly and warm:") },
+            "Shorter" to { transformLastOutput("Shorten this message while keeping the key points:") },
+            "Longer" to { transformLastOutput("Expand this message with more detail:") },
+            "Translate" to { transformLastOutput("Translate this to English:") },
+            "Settings" to { openSettings() },
+            "Exit" to { stopSelf() },
+        )
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+        }
+        lateinit var popup: PopupWindow
+        for ((label, action) in items) {
+            content.addView(TextView(this).apply {
+                text = label
+                setTextColor(Color.parseColor("#202020"))
+                textSize = 15f
+                setPadding(dpToPx(20), dpToPx(12), dpToPx(20), dpToPx(12))
+                setOnClickListener { popup.dismiss(); action() }
+            })
+        }
+        popup = PopupWindow(content, dpToPx(200), LinearLayout.LayoutParams.WRAP_CONTENT, true).apply {
+            setBackgroundDrawable(ColorDrawable(Color.WHITE))
+            elevation = dpToPx(12).toFloat()
+        }
+        try { popup.showAsDropDown(cloud, 0, -cloud.height - dpToPx(8)) } catch (_: Exception) {}
+    }
+
+    private fun showSnippetsSubmenu() {
+        val cloud = cloudView ?: return
+        scope.launch {
+            val snippets = withContext(Dispatchers.IO) {
+                try { JuskoeDatabase.getInstance(this@FloatingService).snippetDao().getAllOnce() }
+                catch (_: Exception) { emptyList() }
+            }
+            if (snippets.isEmpty()) {
+                Toast.makeText(this@FloatingService, "No snippets saved yet", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val content = LinearLayout(this@FloatingService).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(Color.WHITE)
+                setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            }
+            lateinit var popup: PopupWindow
+            for (s in snippets) {
+                content.addView(TextView(this@FloatingService).apply {
+                    text = if (s.title.isNotBlank()) s.title else s.key
+                    setTextColor(Color.parseColor("#202020"))
+                    textSize = 15f
+                    setPadding(dpToPx(20), dpToPx(12), dpToPx(20), dpToPx(12))
+                    setOnClickListener { popup.dismiss(); deliver(s.content) }
+                })
+            }
+            popup = PopupWindow(content, dpToPx(240), LinearLayout.LayoutParams.WRAP_CONTENT, true).apply {
+                setBackgroundDrawable(ColorDrawable(Color.WHITE))
+                elevation = dpToPx(12).toFloat()
+            }
+            try { popup.showAsDropDown(cloud, 0, -cloud.height - dpToPx(8)) } catch (_: Exception) {}
+        }
+    }
+
+    private fun openSettings() {
+        try {
+            startActivity(
+                Intent(this, com.juskoe.app.ui.MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "openSettings failed", e)
+        }
+    }
+
+    // ── Helpers ──
+
+    private fun isNetworkAvailable(): Boolean {
+        return try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val n = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(n) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) { false }
+    }
+
+    private fun getStatusBarHeight(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else 0
+    }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
+
+    private fun startAsForeground() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val mgr = getSystemService(NotificationManager::class.java)
+            if (mgr.getNotificationChannel(CHANNEL_ID) == null) {
+                mgr.createNotificationChannel(
+                    NotificationChannel(CHANNEL_ID, "JUSKOE Cloud", NotificationManager.IMPORTANCE_MIN)
+                )
+            }
+        }
+        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("JUSKOE Cloud active")
+            .setContentText("Your AI assistant is beside your cursor")
+            .setSmallIcon(R.drawable.juskoe_logo)
+            .setOngoing(true)
+            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIF_ID, notif, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } else {
+            startForeground(NOTIF_ID, notif)
+        }
     }
 }
