@@ -74,9 +74,8 @@ import java.util.Date
 import java.util.Locale
 
 private fun isKeyboardEnabled(context: Context): Boolean {
-    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    val inputMethods = imm.enabledInputMethodList
-    return inputMethods.any { it.packageName == context.packageName }
+    // Legacy check — used only to suppress the old keyboard card (always returns true now).
+    return true
 }
 
 private fun getGreeting(name: String): String {
@@ -172,8 +171,10 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(20.dp))
         }
 
-        // Enable keyboard card
-        if (!keyboardEnabled) {
+        // Cloud activation card (replaces old keyboard card)
+        if (!com.juskoe.app.util.CloudActivationManager.hasOverlayPermission(context) ||
+            !com.juskoe.app.util.CloudActivationManager.hasAccessibilityPermission(context)
+        ) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -187,7 +188,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Keyboard,
+                            imageVector = Icons.Filled.Speed,
                             contentDescription = null,
                             tint = Brown,
                             modifier = Modifier.size(32.dp),
@@ -195,18 +196,24 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Enable JUSKOE Keyboard",
+                                text = "Activate JUSKOE Cloud",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                text = "Go to Settings → Keyboards to enable",
+                                text = "Grant overlay + accessibility so the AI cloud appears beside your cursor",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextMuted,
                             )
                         }
                         Button(
-                            onClick = { openKeyboardSettings(context) },
+                            onClick = {
+                                if (!com.juskoe.app.util.CloudActivationManager.hasOverlayPermission(context)) {
+                                    com.juskoe.app.util.CloudActivationManager.requestOverlayPermission(context)
+                                } else {
+                                    com.juskoe.app.util.CloudActivationManager.requestAccessibilityPermission(context)
+                                }
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = Brown),
                             shape = RoundedCornerShape(12.dp),
                         ) {

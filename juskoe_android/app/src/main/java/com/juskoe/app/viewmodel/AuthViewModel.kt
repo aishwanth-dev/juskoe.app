@@ -8,7 +8,9 @@ import com.juskoe.app.data.*
 import com.juskoe.app.data.sync.SyncScheduler
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -49,6 +51,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _usageState = MutableStateFlow(UsageSummary(0, 0, 0, false))
     val usageState: StateFlow<UsageSummary> = _usageState.asStateFlow()
 
+    // Auth events (collected by UI to trigger cloud start on sign-in)
+    private val _authEvent = MutableSharedFlow<AuthEvent>(extraBufferCapacity = 1)
+    val authEvent: SharedFlow<AuthEvent> = _authEvent
+
+    sealed class AuthEvent {
+        object SignedIn : AuthEvent()
+        object SignedOut : AuthEvent()
+    }
+
     init {
         // Listen to session status changes — this is the KEY fix
         // for Google native sign-in: when ComposeAuth completes,
@@ -65,6 +76,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             if (wasNew) {
                                 com.juskoe.app.data.AnalyticsManager.trackSignup()
                             }
+                            _authEvent.tryEmit(AuthEvent.SignedIn)
                             try {
                                 refreshState()
                             } catch (e: Exception) {

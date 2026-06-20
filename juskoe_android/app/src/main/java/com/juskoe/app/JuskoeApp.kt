@@ -29,14 +29,9 @@ class JuskoeApp : Application() {
         SyncScheduler.ensurePeriodicSync(this)
         SyncScheduler.requestSyncNow(this)
 
-        // Restore Float JUSKOE overlay if the user had it enabled and still has
-        // the overlay permission.
+        // Auto-start JUSKOE Cloud if permissions are granted.
         try {
-            if (com.juskoe.app.floating.FloatManager.isEnabledPref(this) &&
-                com.juskoe.app.floating.FloatManager.canDrawOverlay(this)
-            ) {
-                com.juskoe.app.floating.FloatingService.start(this)
-            }
+            com.juskoe.app.util.CloudActivationManager.startCloudIfReady(this)
         } catch (_: Exception) {}
     }
 
