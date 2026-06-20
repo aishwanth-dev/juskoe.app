@@ -5,6 +5,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -32,7 +33,7 @@ object GeminiService {
 
     private val httpClient = HttpClient(Android) {
         install(ContentNegotiation) {
-            io.ktor.serialization.kotlinx.json.json(Json { ignoreUnknownKeys = true })
+            json(Json { ignoreUnknownKeys = true })
         }
         install(HttpTimeout) {
             requestTimeoutMillis = 30_000
@@ -83,7 +84,7 @@ object GeminiService {
 
 Context: App=Juskoe Type=mobile Tone=auto
 User Languages: $langNames
-${snippetContext}${dictionaryContext}
+$snippetContext$dictionaryContext
 IMPORTANT SNIPPET RULES:
 - When user says a snippet key (e.g., "my name"), replace it with the snippet content in the output.
 - Snippets are the user's saved text shortcuts. Apply them naturally in context.
@@ -150,7 +151,7 @@ Output: Corrected text only. No explanations. No meta."""
 
     suspend fun callGemini(systemPrompt: String, userPrompt: String, mode: String = "ai"): Result<String> {
         val token = SupabaseManager.currentAccessToken()
-            ?: return Result.failure(AiAuthRequiredException())
+            ?: return Result.failure<String>(AiAuthRequiredException())
 
         val maxAttempts = 3
         var lastError: Exception? = null
@@ -177,10 +178,10 @@ Output: Corrected text only. No explanations. No meta."""
                     val err = json["error"]?.jsonPrimitive?.content ?: "AI service error"
                     AnalyticsManager.trackError(mode, err)
                     // 4xx-style errors won't be fixed by retrying — fail fast.
-                    return Result.failure(Exception(err))
+                    return Result.failure<String>(Exception(err))
                 }
                 val output = json["output"]?.jsonPrimitive?.content?.trim().orEmpty()
-                if (output.isEmpty()) return Result.failure(Exception("Empty AI response"))
+                if (output.isEmpty()) return Result.failure<String>(Exception("Empty AI response"))
                 return Result.success(output)
             } catch (e: Exception) {
                 // Network/timeout — retry with exponential backoff
@@ -189,7 +190,7 @@ Output: Corrected text only. No explanations. No meta."""
                 if (attempt < maxAttempts - 1) delay(400L * (attempt + 1))
             }
         }
-        return Result.failure(lastError ?: Exception("AI request failed")).also {
+        return Result.failure<String>(lastError ?: Exception("AI request failed")).also {
             AnalyticsManager.trackError(mode, lastError?.message ?: "AI request failed")
         }
     }

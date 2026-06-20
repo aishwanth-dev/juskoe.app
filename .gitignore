@@ -59,3 +59,12 @@ juskoe_android/app/libs/*.aar
 
 # === Supabase ===
 supabase/.temp/
+
+# Leaked/local Gradle home & caches inside the project (never commit)
+juskoe_android/gradle/wrapper/caches/
+juskoe_android/gradle/wrapper/daemon/
+juskoe_android/gradle/wrapper/native/
+juskoe_android/gradle/wrapper/android/
+juskoe_android/gradle/wrapper/kotlin-profile/
+juskoe_android/.gradle/
+*.lnk
