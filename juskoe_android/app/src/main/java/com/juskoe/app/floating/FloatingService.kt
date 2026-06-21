@@ -217,7 +217,7 @@ class FloatingService : Service() {
             return
         }
         activeMode = mode
-        Log.d("JUSKOE", "🎤 Starting $mode mode")
+        Log.d("JUSKOE", "AI_MODE_SELECTED: $mode")
         cloudView?.setState(JuskoeCloudView.CloudState.LISTENING)
         cloudView?.setOfflineBadge(mode == MODE_OFFLINE || !isNetworkAvailable())
         rec.amplitudeListener = { amp -> scope.launch { cloudView?.setAmplitude(amp) } }
@@ -323,8 +323,9 @@ class FloatingService : Service() {
             AnalyticsManager.trackError("insertion", "accessibility_unavailable")
             return false
         }
+        Log.d("JUSKOE", "INSERTION_STARTED: len=${text.length}")
         val ok = acc.insertText(text)
-        Log.d("JUSKOE", "📝 insertText result=$ok, length=${text.length}")
+        Log.d("JUSKOE", "INSERTION_COMPLETED: result=$ok")
         if (!ok) AnalyticsManager.trackError("insertion", "no_focused_field")
         return ok
     }

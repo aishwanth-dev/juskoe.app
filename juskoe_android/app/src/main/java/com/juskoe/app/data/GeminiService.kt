@@ -151,7 +151,10 @@ Output: Corrected text only. No explanations. No meta."""
 
     suspend fun callGemini(systemPrompt: String, userPrompt: String, mode: String = "ai"): Result<String> {
         val token = SupabaseManager.currentAccessToken()
-            ?: return Result.failure<String>(AiAuthRequiredException())
+        if (token == null) {
+            Log.w("JUSKOE", "REQUEST_BLOCKED: not signed in (ai-proxy requires a Supabase session)")
+            return Result.failure<String>(AiAuthRequiredException())
+        }
 
         val maxAttempts = 3
         var lastError: Exception? = null
@@ -171,9 +174,11 @@ Output: Corrected text only. No explanations. No meta."""
                     header("apikey", Config.SUPABASE_ANON_KEY)
                     setBody(requestBody.toString())
                 }
+                Log.d("JUSKOE", "REQUEST_SENT: mode=$mode → ${Config.AI_PROXY_URL} (attempt ${attempt + 1})")
 
                 val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
                 val success = json["success"]?.jsonPrimitive?.boolean ?: false
+                Log.d("JUSKOE", "RESPONSE_RECEIVED: success=$success")
                 if (!success) {
                     val err = json["error"]?.jsonPrimitive?.content ?: "AI service error"
                     AnalyticsManager.trackError(mode, err)
@@ -215,6 +220,7 @@ Output: Corrected text only. No explanations. No meta."""
             "grammar" -> getGrammarModePrompt(dictWords, selectedLanguages)
             else -> getAIModePrompt(snippets, dictWords, selectedLanguages)
         }
+        Log.d("JUSKOE", "PROMPT_CREATED: mode=$mode, systemLen=${systemPrompt.length}, inputLen=${transcript.length}")
 
         return callGemini(systemPrompt, transcript, mode)
     }

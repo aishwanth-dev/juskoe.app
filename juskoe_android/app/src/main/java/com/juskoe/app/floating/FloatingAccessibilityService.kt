@@ -35,7 +35,8 @@ class FloatingAccessibilityService : AccessibilityService() {
         try {
             event ?: return
             if (event.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED &&
-                event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
+                event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
+                event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED
             ) return
 
             val focused = try {
@@ -54,16 +55,21 @@ class FloatingAccessibilityService : AccessibilityService() {
             val rect = Rect()
             focused.getBoundsInScreen(rect)
             val estimatedTextSize = 16f * resources.displayMetrics.density
-            // Property access is wrapped — some IMEs/devices throw here.
+            // Caret index: prefer the selection-change event's toIndex (accurate),
+            // then the node's selection end, then end-of-text.
+            val evtCaret = if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) {
+                try { event.toIndex } catch (_: Exception) { -1 }
+            } else -1
             val selEnd = try { focused.textSelectionEnd } catch (_: Exception) { -1 }
             val charCount = try { focused.text?.length ?: 0 } catch (_: Exception) { 0 }
-            val pos = if (selEnd > 0) selEnd else charCount
-            val caretX: Float = if (pos > 0) {
-                (rect.left + pos * estimatedTextSize * 0.5f)
-                    .coerceIn(rect.left.toFloat(), rect.right.toFloat())
-            } else {
-                rect.right.toFloat() // Fallback: top-right of the field (always works)
+            val pos = when {
+                evtCaret >= 0 -> evtCaret
+                selEnd >= 0 -> selEnd
+                else -> charCount
             }
+            // X near the caret column, clamped inside the field.
+            val caretX: Float = (rect.left + pos * estimatedTextSize * 0.5f)
+                .coerceIn(rect.left.toFloat(), rect.right.toFloat())
             val caretY = rect.top.toFloat()
             Log.d("JUSKOE", "📍 Caret ~($caretX, $caretY) pkg=${event.packageName} field=${rect.toShortString()}")
             FloatingService.instance?.positionCloud(caretX, caretY, rect)

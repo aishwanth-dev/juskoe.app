@@ -270,6 +270,7 @@ class VoicePipeline(private val context: Context) {
 
             // Step 3: Pre-process transcript (dict corrections + snippet replacements)
             val transcript = preprocessTranscript(rawTranscript, snippets, dictWords)
+            Log.d("JUSKOE", "TEXT_CAPTURED: \"$transcript\" (mode=$mode)")
 
             // Step 4: Gemini Processing (with snippet/dict context in system prompt)
             val selectedLangNames = SherpaSTT.getSelectedLanguages(context).map { code ->
