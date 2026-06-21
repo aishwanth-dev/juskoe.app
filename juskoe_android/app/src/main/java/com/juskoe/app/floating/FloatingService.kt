@@ -31,8 +31,10 @@ import com.juskoe.app.data.local.JuskoeDatabase
 import com.juskoe.app.data.local.NoteEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -53,6 +55,12 @@ class FloatingService : Service() {
         const val MODE_GRAMMAR = "grammar"
         const val MODE_OFFLINE = "offline"
         const val MODE_NOTES = "notes"
+
+        // Auto silence-stop tuning
+        private const val SPEECH_THRESHOLD = 0.06f   // normalized peak (0..1) that counts as speech
+        private const val SILENCE_HOLD_MS = 2000L    // stop after this much silence following speech
+        private const val NO_SPEECH_TIMEOUT_MS = 6000L // stop if nothing is ever said
+        private const val MAX_RECORD_MS = 15000L     // hard cap
 
         @Volatile
         var instance: FloatingService? = null
@@ -78,6 +86,11 @@ class FloatingService : Service() {
 
     private var recording = false
     private var activeMode = MODE_AI
+
+    // Silence-detection state
+    private var silenceJob: Job? = null
+    private var lastLoudMs = 0L
+    private var speechStarted = false
 
     // For retry: last audio + mode, and last AI output for transforms.
     private var lastPcm: ByteArray? = null
@@ -242,10 +255,20 @@ class FloatingService : Service() {
         Log.d("JUSKOE", "AI_MODE_SELECTED: $mode")
         cloudView?.setState(JuskoeCloudView.CloudState.LISTENING)
         cloudView?.setOfflineBadge(mode == MODE_OFFLINE || !isNetworkAvailable())
-        rec.amplitudeListener = { amp -> scope.launch { cloudView?.setAmplitude(amp) } }
+        // Silence-detection state: track speech + the last loud frame.
+        speechStarted = false
+        lastLoudMs = System.currentTimeMillis()
+        rec.amplitudeListener = { amp ->
+            if (amp >= SPEECH_THRESHOLD) {
+                speechStarted = true
+                lastLoudMs = System.currentTimeMillis()
+            }
+            scope.launch { cloudView?.setAmplitude(amp) }
+        }
         val started = try { rec.startRecording() } catch (_: Exception) { false }
         if (started) {
             recording = true
+            startSilenceMonitor()
         } else {
             recording = false
             Log.e("JUSKOE", "ERROR_STAGE=AUDIO ERROR_MESSAGE=startRecording failed (mic init/permission)")
@@ -253,10 +276,40 @@ class FloatingService : Service() {
         }
     }
 
+    /**
+     * Auto-stop on ~2s of silence after speech (no manual second tap). Falls back
+     * to a no-speech timeout and a hard max-duration cap.
+     */
+    private fun startSilenceMonitor() {
+        silenceJob?.cancel()
+        silenceJob = scope.launch {
+            val startMs = System.currentTimeMillis()
+            while (recording) {
+                delay(200)
+                val now = System.currentTimeMillis()
+                when {
+                    speechStarted && now - lastLoudMs >= SILENCE_HOLD_MS -> {
+                        Log.d("JUSKOE", "Auto-stop: silence ${SILENCE_HOLD_MS}ms after speech")
+                        stopListeningAndProcess(); break
+                    }
+                    !speechStarted && now - startMs >= NO_SPEECH_TIMEOUT_MS -> {
+                        Log.d("JUSKOE", "Auto-stop: no speech within ${NO_SPEECH_TIMEOUT_MS}ms")
+                        stopListeningAndProcess(); break
+                    }
+                    now - startMs >= MAX_RECORD_MS -> {
+                        Log.d("JUSKOE", "Auto-stop: max record ${MAX_RECORD_MS}ms")
+                        stopListeningAndProcess(); break
+                    }
+                }
+            }
+        }
+    }
+
     private fun stopListeningAndProcess() {
         val rec = recorder ?: return
         if (!recording) return
         recording = false
+        silenceJob?.cancel()
         rec.amplitudeListener = null
         val pcm = try { rec.stopRecording() } catch (_: Exception) { null } ?: return
         lastPcm = pcm; lastMode = activeMode
