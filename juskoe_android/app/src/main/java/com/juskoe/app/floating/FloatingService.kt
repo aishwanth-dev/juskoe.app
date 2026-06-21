@@ -112,6 +112,26 @@ class FloatingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
+    /**
+     * Keep the cloud running in the background even when the user swipes JUSKOE
+     * out of recents. Re-issue a start so the foreground service is re-created
+     * if the system tears it down with the task.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d("JUSKOE", "onTaskRemoved — keeping cloud alive in background")
+        try {
+            val restart = Intent(applicationContext, FloatingService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                applicationContext.startForegroundService(restart)
+            } else {
+                applicationContext.startService(restart)
+            }
+        } catch (e: Exception) {
+            Log.e("JUSKOE", "onTaskRemoved restart failed", e)
+        }
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         instance = null
         try { cloudView?.let { wm.removeView(it) } } catch (_: Exception) {}

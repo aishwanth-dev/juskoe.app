@@ -61,10 +61,12 @@
                 android:resource="@xml/method" />
         </service>
 
-        <!-- Float JUSKOE — overlay foreground service (records mic) -->
+        <!-- Float JUSKOE — overlay foreground service (records mic).
+             stopWithTask=false keeps the cloud alive when the app is swiped away. -->
         <service
             android:name=".floating.FloatingService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="microphone" />
 
         <!-- Accessibility service for inserting text into any focused field -->
