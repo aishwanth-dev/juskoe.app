@@ -1,7 +1,9 @@
 package com.juskoe.app.floating
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Context
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
@@ -19,45 +21,55 @@ class FloatingAccessibilityService : AccessibilityService() {
     private val caretThrottleMs = 50L
 
     override fun onServiceConnected() {
-        instance = this
+        try {
+            instance = this
+            Log.d("JUSKOE", "✅ AccessibilityService connected (api=${Build.VERSION.SDK_INT})")
+        } catch (e: Exception) {
+            Log.e("JUSKOE", "onServiceConnected error", e)
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        event ?: return
-        if (event.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED &&
-            event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
-        ) return
-
-        val focused = try {
-            rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-        } catch (_: Exception) { null }
-
-        if (focused == null || !focused.isEditable) {
-            FloatingService.instance?.hideCloud()
-            return
-        }
-
-        val now = System.currentTimeMillis()
-        if (now - lastCaretUpdateMs < caretThrottleMs) return
-        lastCaretUpdateMs = now
-
+        // Hard guarantee: never let an exception escape — that is what triggers
+        // Android's "This service is malfunctioning" and disables the service.
         try {
+            event ?: return
+            if (event.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED &&
+                event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
+            ) return
+
+            val focused = try {
+                rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            } catch (_: Exception) { null }
+
+            if (focused == null || !focused.isEditable) {
+                FloatingService.instance?.hideCloud()
+                return
+            }
+
+            val now = System.currentTimeMillis()
+            if (now - lastCaretUpdateMs < caretThrottleMs) return
+            lastCaretUpdateMs = now
+
             val rect = Rect()
             focused.getBoundsInScreen(rect)
-            // AccessibilityNodeInfo has no textSize property; use a reasonable default.
-            val estimatedTextSize = 16f * resources.displayMetrics.density // ~16sp in px
-            val selEnd = focused.textSelectionEnd // API 18+ (minSdk 26 is safe)
-            val caretX: Float = if (selEnd > 0 && focused.text != null) {
-                (rect.left + selEnd * estimatedTextSize * 0.45f).coerceAtMost(rect.right.toFloat())
+            val estimatedTextSize = 16f * resources.displayMetrics.density
+            // Property access is wrapped — some IMEs/devices throw here.
+            val selEnd = try { focused.textSelectionEnd } catch (_: Exception) { -1 }
+            val charCount = try { focused.text?.length ?: 0 } catch (_: Exception) { 0 }
+            val pos = if (selEnd > 0) selEnd else charCount
+            val caretX: Float = if (pos > 0) {
+                (rect.left + pos * estimatedTextSize * 0.5f)
+                    .coerceIn(rect.left.toFloat(), rect.right.toFloat())
             } else {
-                rect.right.toFloat()
+                rect.right.toFloat() // Fallback: top-right of the field (always works)
             }
             val caretY = rect.top.toFloat()
-            Log.d("JUSKOE", "📍 Caret at ($caretX, $caretY) pkg=${event.packageName}")
+            Log.d("JUSKOE", "📍 Caret ~($caretX, $caretY) pkg=${event.packageName} field=${rect.toShortString()}")
             FloatingService.instance?.positionCloud(caretX, caretY, rect)
             FloatingService.instance?.showCloud()
-        } catch (_: Exception) {
-            // Positioning is best-effort; never crash on a layout query.
+        } catch (e: Exception) {
+            Log.e("JUSKOE", "onAccessibilityEvent error (recovered)", e)
         }
     }
 
@@ -77,15 +89,36 @@ class FloatingAccessibilityService : AccessibilityService() {
             val root = rootInActiveWindow ?: return false
             val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
             if (!focused.isEditable) return false
-            val existing = focused.text?.toString() ?: ""
+
+            // Strategy 1: ACTION_SET_TEXT (append to existing content).
+            val existing = try { focused.text?.toString() ?: "" } catch (_: Exception) { "" }
             val args = Bundle().apply {
                 putCharSequence(
                     AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
                     existing + text,
                 )
             }
-            focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+            if (focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
+                Log.d("JUSKOE", "✅ insertText via ACTION_SET_TEXT (len=${text.length})")
+                return true
+            }
+
+            // Strategy 2: clipboard + ACTION_PASTE (works in many WebView/RN/Flutter fields).
+            try {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("JUSKOE", text))
+                if (focused.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
+                    Log.d("JUSKOE", "✅ insertText via ACTION_PASTE")
+                    return true
+                }
+            } catch (e: Exception) {
+                Log.e("JUSKOE", "ACTION_PASTE strategy failed", e)
+            }
+
+            Log.w("JUSKOE", "❌ insertText: all strategies failed")
+            false
         } catch (e: Exception) {
+            Log.e("JUSKOE", "insertText error", e)
             false
         }
     }

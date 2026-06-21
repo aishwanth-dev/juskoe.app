@@ -1,11 +1,13 @@
 package com.juskoe.app.util
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import com.juskoe.app.floating.FloatingService
 
@@ -22,13 +24,40 @@ object CloudActivationManager {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context) else true
 
     fun hasAccessibilityPermission(context: Context): Boolean {
-        val enabled = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        ) ?: return false
-        val expected = context.packageName + "/" +
-            context.packageName + ".floating.FloatingAccessibilityService"
-        return enabled.contains(expected)
+        // PRIMARY: query the system for enabled services and match by PACKAGE.
+        // This avoids the applicationId (com.x16studios.juskoe) vs namespace
+        // (com.juskoe.app) mismatch that breaks naive class-name string checks.
+        try {
+            val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+            val enabled = am?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            if (enabled != null && enabled.any {
+                    it.resolveInfo?.serviceInfo?.packageName == context.packageName
+                }
+            ) {
+                Log.d("JUSKOE", "Accessibility: enabled (AccessibilityManager match)")
+                return true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "AccessibilityManager check failed", e)
+        }
+
+        // FALLBACK: parse Settings.Secure, matching package + service simple name
+        // (tolerates appId != namespace).
+        return try {
+            val raw = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+            ) ?: return false
+            val match = raw.split(':').any { entry ->
+                val pkg = entry.substringBefore('/')
+                pkg == context.packageName && entry.contains("FloatingAccessibilityService")
+            }
+            Log.d("JUSKOE", "Accessibility: enabled=$match (Settings.Secure fallback) raw=$raw")
+            match
+        } catch (e: Exception) {
+            Log.e(TAG, "Settings.Secure check failed", e)
+            false
+        }
     }
 
     fun requestOverlayPermission(context: Context) {
