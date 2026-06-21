@@ -42,6 +42,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Cloud diagnostics (live state + force actions) -->
+        <activity
+            android:name=".ui.CloudDiagnosticsActivity"
+            android:exported="false" />
+
         <!-- Custom Keyboard (IME) -->
         <service
             android:name=".keyboard.JuskoeKeyboardService"

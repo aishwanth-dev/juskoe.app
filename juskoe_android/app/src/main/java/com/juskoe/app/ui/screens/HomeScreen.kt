@@ -225,6 +225,40 @@ fun HomeScreen(
             }
         }
 
+        // Diagnostics + debug tools
+        item {
+            OutlinedButton(
+                onClick = {
+                    context.startActivity(
+                        Intent(context, com.juskoe.app.ui.CloudDiagnosticsActivity::class.java)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text("Cloud Diagnostics")
+            }
+            if (com.juskoe.app.BuildConfig.DEBUG) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val started = com.juskoe.app.util.CloudActivationManager.startCloudIfReady(context)
+                        val msg = if (started) "Cloud started — open any app and tap a text field"
+                            else "Grant overlay + accessibility first (see card above)"
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = androidx.compose.ui.graphics.Color(0xFFFF9800)
+                    ),
+                ) {
+                    Text("DEBUG: Start Cloud (Test)")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         // Credits Row
         item {
             Row(

@@ -101,6 +101,7 @@ class FloatingService : Service() {
         scope.launch(Dispatchers.IO) { try { pipeline?.initSTT() } catch (_: Exception) {} }
         try {
             addCloud()
+            Log.d("JUSKOE", "✅ FloatingService created")
         } catch (e: Exception) {
             Log.e(TAG, "addCloud failed", e)
             stopSelf()
@@ -173,7 +174,10 @@ class FloatingService : Service() {
 
         val lp = cloud.layoutParams as? WindowManager.LayoutParams ?: return
         lp.x = x.toInt(); lp.y = y.toInt()
-        try { wm.updateViewLayout(cloud, lp) } catch (_: Exception) {}
+        try {
+            wm.updateViewLayout(cloud, lp)
+            Log.d("JUSKOE", "☁️ Cloud at (${lp.x}, ${lp.y}) for caret ($caretX, $caretY)")
+        } catch (_: Exception) {}
     }
 
     fun showCloud() {
@@ -213,6 +217,7 @@ class FloatingService : Service() {
             return
         }
         activeMode = mode
+        Log.d("JUSKOE", "🎤 Starting $mode mode")
         cloudView?.setState(JuskoeCloudView.CloudState.LISTENING)
         cloudView?.setOfflineBadge(mode == MODE_OFFLINE || !isNetworkAvailable())
         rec.amplitudeListener = { amp -> scope.launch { cloudView?.setAmplitude(amp) } }
@@ -319,6 +324,7 @@ class FloatingService : Service() {
             return false
         }
         val ok = acc.insertText(text)
+        Log.d("JUSKOE", "📝 insertText result=$ok, length=${text.length}")
         if (!ok) AnalyticsManager.trackError("insertion", "no_focused_field")
         return ok
     }

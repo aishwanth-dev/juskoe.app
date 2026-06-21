@@ -3,6 +3,7 @@ package com.juskoe.app.floating
 import android.accessibilityservice.AccessibilityService
 import android.graphics.Rect
 import android.os.Bundle
+import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -52,6 +53,7 @@ class FloatingAccessibilityService : AccessibilityService() {
                 rect.right.toFloat()
             }
             val caretY = rect.top.toFloat()
+            Log.d("JUSKOE", "📍 Caret at ($caretX, $caretY) pkg=${event.packageName}")
             FloatingService.instance?.positionCloud(caretX, caretY, rect)
             FloatingService.instance?.showCloud()
         } catch (_: Exception) {

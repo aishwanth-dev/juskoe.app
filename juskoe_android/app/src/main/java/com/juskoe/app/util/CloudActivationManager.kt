@@ -69,4 +69,20 @@ object CloudActivationManager {
     fun stopCloud(context: Context) {
         FloatingService.stop(context)
     }
+
+    /** Open the system "draw over other apps" settings screen for this package. */
+    fun openOverlaySettings(context: Context) {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}"),
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
+    }
+
+    /** Open the system Accessibility settings screen. */
+    fun openAccessibilitySettings(context: Context) {
+        context.startActivity(
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
 }
