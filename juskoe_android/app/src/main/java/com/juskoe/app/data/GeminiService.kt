@@ -181,6 +181,7 @@ Output: Corrected text only. No explanations. No meta."""
                 Log.d("JUSKOE", "RESPONSE_RECEIVED: success=$success")
                 if (!success) {
                     val err = json["error"]?.jsonPrimitive?.content ?: "AI service error"
+                    Log.e("JUSKOE", "ERROR_STAGE=RESPONSE_PARSE ERROR_MESSAGE=$err")
                     AnalyticsManager.trackError(mode, err)
                     // 4xx-style errors won't be fixed by retrying — fail fast.
                     return Result.failure<String>(Exception(err))
@@ -191,7 +192,7 @@ Output: Corrected text only. No explanations. No meta."""
             } catch (e: Exception) {
                 // Network/timeout — retry with exponential backoff
                 lastError = e
-                Log.e(TAG, "callGemini attempt ${attempt + 1}/$maxAttempts failed", e)
+                Log.e("JUSKOE", "ERROR_STAGE=GEMINI ERROR_MESSAGE=${e.message} (attempt ${attempt + 1}/$maxAttempts)", e)
                 if (attempt < maxAttempts - 1) delay(400L * (attempt + 1))
             }
         }

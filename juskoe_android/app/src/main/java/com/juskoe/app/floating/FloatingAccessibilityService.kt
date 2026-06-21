@@ -23,7 +23,7 @@ class FloatingAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         try {
             instance = this
-            Log.d("JUSKOE", "✅ AccessibilityService connected (api=${Build.VERSION.SDK_INT})")
+            Log.d("JUSKOE", "SERVICE_CONNECTED: AccessibilityService (api=${Build.VERSION.SDK_INT})")
         } catch (e: Exception) {
             Log.e("JUSKOE", "onServiceConnected error", e)
         }
@@ -38,15 +38,18 @@ class FloatingAccessibilityService : AccessibilityService() {
                 event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
                 event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED
             ) return
+            Log.d("JUSKOE", "EVENT_RECEIVED: type=${event.eventType} pkg=${event.packageName}")
 
             val focused = try {
                 rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             } catch (_: Exception) { null }
 
             if (focused == null || !focused.isEditable) {
+                Log.d("JUSKOE", "FIELD_LOST: no editable focus")
                 FloatingService.instance?.hideCloud()
                 return
             }
+            Log.d("JUSKOE", "FIELD_DETECTED: editable focus pkg=${event.packageName}")
 
             val now = System.currentTimeMillis()
             if (now - lastCaretUpdateMs < caretThrottleMs) return
@@ -92,6 +95,7 @@ class FloatingAccessibilityService : AccessibilityService() {
      */
     fun insertText(text: String): Boolean {
         return try {
+            Log.d("JUSKOE", "INSERTION_REQUESTED: len=${text.length}")
             val root = rootInActiveWindow ?: return false
             val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
             if (!focused.isEditable) return false

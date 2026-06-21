@@ -83,12 +83,14 @@ class FloatingService : Service() {
     private var lastPcm: ByteArray? = null
     private var lastMode: String = MODE_AI
     private var lastOutput: String = ""
+    private var lastErrorMsg: String? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         instance = this
+        Log.d("JUSKOE", "SERVICE_STARTED: FloatingService.onCreate")
         try {
             startAsForeground()
         } catch (e: Exception) {
@@ -226,6 +228,7 @@ class FloatingService : Service() {
             recording = true
         } else {
             recording = false
+            Log.e("JUSKOE", "ERROR_STAGE=AUDIO ERROR_MESSAGE=startRecording failed (mic init/permission)")
             cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
         }
     }
@@ -243,35 +246,50 @@ class FloatingService : Service() {
 
     /** Run STT/AI for [mode] off the main thread, then deliver + set cloud state. */
     private suspend fun runAndDeliver(pcm: ByteArray, mode: String) {
+        lastErrorMsg = null
         val output = try { runMode(pcm, mode) } catch (e: Exception) {
-            Log.e(TAG, "runMode failed", e); null
+            lastErrorMsg = e.message
+            Log.e("JUSKOE", "ERROR_STAGE=PIPELINE ERROR_MESSAGE=${e.message}", e)
+            null
         }
         if (output.isNullOrBlank()) {
+            val reason = lastErrorMsg ?: "No output"
+            Log.e("JUSKOE", "🔴 RED_CLOUD reason=\"$reason\" mode=$mode")
             cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
             AnalyticsManager.trackError("cloud", "no_output_$mode")
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
             return
         }
         if (mode != MODE_NOTES) lastOutput = output
         val inserted = deliver(output)
+        if (!inserted) {
+            Log.e("JUSKOE", "ERROR_STAGE=INSERTION ERROR_MESSAGE=insert+paste failed; output kept on clipboard")
+        }
         cloudView?.setState(
             if (inserted) JuskoeCloudView.CloudState.SUCCESS else JuskoeCloudView.CloudState.ERROR
         )
     }
 
     private suspend fun runMode(pcm: ByteArray, mode: String): String? {
-        val p = pipeline ?: return null
+        val p = pipeline ?: run { lastErrorMsg = "Pipeline not ready"; return null }
         return when (mode) {
             MODE_NOTES -> {
                 val t = p.transcribeForNote(pcm)
-                if (t.isBlank()) null else { saveNote(t); t }
+                if (t.isBlank()) { lastErrorMsg = "No speech detected"; null } else { saveNote(t); t }
             }
             MODE_OFFLINE -> {
                 val t = p.transcribeForNote(pcm)
-                if (t.isBlank()) null else "$t (offline)"
+                if (t.isBlank()) { lastErrorMsg = "No speech detected"; null } else "$t (offline)"
             }
             else -> {
                 val r = p.processRecording(pcm, mode)
-                if (r.success) r.processedText else null
+                if (r.success) {
+                    r.processedText
+                } else {
+                    lastErrorMsg = r.error
+                    Log.e("JUSKOE", "ERROR_STAGE=PIPELINE ERROR_MESSAGE=${r.error}")
+                    null
+                }
             }
         }
     }
@@ -314,19 +332,24 @@ class FloatingService : Service() {
     /** Insert via accessibility. Returns true if inserted into a focused field. */
     private fun deliver(text: String): Boolean {
         val acc = FloatingAccessibilityService.instance
-        if (acc == null) {
-            Toast.makeText(
-                this,
-                "Enable JUSKOE Cloud in Accessibility settings for direct insertion",
-                Toast.LENGTH_LONG,
-            ).show()
-            AnalyticsManager.trackError("insertion", "accessibility_unavailable")
-            return false
-        }
-        Log.d("JUSKOE", "INSERTION_STARTED: len=${text.length}")
-        val ok = acc.insertText(text)
+        Log.d("JUSKOE", "INSERTION_STARTED: len=${text.length}, accessibility=${acc != null}")
+        val ok = acc?.insertText(text) ?: false
         Log.d("JUSKOE", "INSERTION_COMPLETED: result=$ok")
-        if (!ok) AnalyticsManager.trackError("insertion", "no_focused_field")
+        if (!ok) {
+            // Never lose the generated text — fall back to clipboard so the user can paste.
+            try {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                cm?.setPrimaryClip(android.content.ClipData.newPlainText("JUSKOE", text))
+                Toast.makeText(
+                    this,
+                    "Couldn't type here — copied to clipboard, long-press the field to paste",
+                    Toast.LENGTH_LONG,
+                ).show()
+            } catch (e: Exception) {
+                Log.e("JUSKOE", "ERROR_STAGE=INSERTION clipboard fallback failed", e)
+            }
+            AnalyticsManager.trackError("insertion", if (acc == null) "accessibility_unavailable" else "insert_failed")
+        }
         return ok
     }
 

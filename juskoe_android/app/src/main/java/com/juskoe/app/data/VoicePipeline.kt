@@ -250,6 +250,7 @@ class VoicePipeline(private val context: Context) {
             Log.d(TAG, "Pipeline STT took ${sttMs}ms")
 
             if (rawTranscript.isBlank()) {
+                Log.e("JUSKOE", "ERROR_STAGE=STT ERROR_MESSAGE=No speech detected (blank transcript, sttMs=$sttMs)")
                 return@withContext PipelineResult(
                     success = false,
                     error = "No speech detected",
@@ -262,6 +263,7 @@ class VoicePipeline(private val context: Context) {
                 "bye", "see you", "you",
             )
             if (rawTranscript.lowercase().trim() in hallucinationPatterns) {
+                Log.e("JUSKOE", "ERROR_STAGE=STT ERROR_MESSAGE=Noise filtered (\"$rawTranscript\")")
                 return@withContext PipelineResult(
                     success = false,
                     error = "Noise filtered",
@@ -288,10 +290,12 @@ class VoicePipeline(private val context: Context) {
             Log.d(TAG, "Pipeline Gemini took ${geminiMs}ms")
 
             if (processedResult.isFailure) {
+                val em = processedResult.exceptionOrNull()?.message ?: "AI processing failed"
+                Log.e("JUSKOE", "ERROR_STAGE=GEMINI ERROR_MESSAGE=$em")
                 return@withContext PipelineResult(
                     success = false,
                     transcript = transcript,
-                    error = processedResult.exceptionOrNull()?.message ?: "AI processing failed",
+                    error = em,
                 )
             }
 
@@ -311,6 +315,7 @@ class VoicePipeline(private val context: Context) {
                 processedText = output,
             )
         } catch (e: Exception) {
+            Log.e("JUSKOE", "ERROR_STAGE=PIPELINE ERROR_MESSAGE=${e.message}", e)
             PipelineResult(
                 success = false,
                 error = e.message ?: "Pipeline error",
