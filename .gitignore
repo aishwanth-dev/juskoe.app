@@ -68,3 +68,6 @@ juskoe_android/gradle/wrapper/android/
 juskoe_android/gradle/wrapper/kotlin-profile/
 juskoe_android/.gradle/
 *.lnk
+
+# Gradle wrapper distribution cache (must never be committed)
+juskoe_android/gradle/wrapper/wrapper/
