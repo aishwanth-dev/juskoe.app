@@ -181,7 +181,7 @@ fun OnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                colors = ButtonDefaults.buttonColors(containerColor = Purple),
                 shape = RoundedCornerShape(14.dp),
             ) {
                 Text("Get Started", fontWeight = FontWeight.SemiBold)
@@ -192,7 +192,7 @@ fun OnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                colors = ButtonDefaults.buttonColors(containerColor = Purple),
                 shape = RoundedCornerShape(14.dp),
             ) {
                 Text(

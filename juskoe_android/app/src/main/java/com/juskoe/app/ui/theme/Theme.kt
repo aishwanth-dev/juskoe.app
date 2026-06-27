@@ -6,24 +6,24 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+// Light: white canvas, near-black text, purple accent.
 private val JuskoeColorScheme = lightColorScheme(
-    primary = Brown,
-    onPrimary = TextOnBrown,
-    primaryContainer = BrownLight,
-    onPrimaryContainer = TextOnBrown,
+    primary = Purple,
+    onPrimary = White,
+    primaryContainer = PurpleSurface,
+    onPrimaryContainer = PurpleDark,
     secondary = Purple,
     onSecondary = White,
-    secondaryContainer = PurpleLight,
+    secondaryContainer = PurpleSurface,
     onSecondaryContainer = PurpleDark,
-    tertiary = Amber,
+    tertiary = PurpleLight,
     onTertiary = White,
-    tertiaryContainer = AmberLight,
-    onTertiaryContainer = Amber,
+    tertiaryContainer = PurpleSurface,
+    onTertiaryContainer = PurpleDark,
     background = White,
     onBackground = TextPrimary,
     surface = White,
@@ -36,28 +36,26 @@ private val JuskoeColorScheme = lightColorScheme(
     onError = White,
 )
 
-private val DarkBg = Color(0xFF121212)
-private val DarkSurface = Color(0xFF1E1E1E)
-private val DarkSurfaceVariant = Color(0xFF2A2A2A)
-private val DarkOnSurface = Color(0xFFEDEDED)
-
+// Dark: Raycast/Nothing-style near-black canvas with a brighter purple accent.
 private val JuskoeDarkColorScheme = darkColorScheme(
-    primary = Brown,
+    primary = PurpleDarkMode,
     onPrimary = White,
-    primaryContainer = BrownLight,
-    onPrimaryContainer = White,
-    secondary = Purple,
+    primaryContainer = DarkSurfaceVariant,
+    onPrimaryContainer = PurpleLight,
+    secondary = PurpleDarkMode,
     onSecondary = White,
-    tertiary = Amber,
+    secondaryContainer = DarkSurfaceVariant,
+    onSecondaryContainer = PurpleLight,
+    tertiary = PurpleLight,
     onTertiary = White,
-    background = DarkBg,
-    onBackground = DarkOnSurface,
-    surface = DarkSurface,
-    onSurface = DarkOnSurface,
+    background = DarkBackground,
+    onBackground = DarkTextPrimary,
+    surface = DarkCard,
+    onSurface = DarkTextPrimary,
     surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = TextMuted,
-    outline = Border,
-    outlineVariant = BorderLight,
+    onSurfaceVariant = DarkTextSecondary,
+    outline = BrownBorder,
+    outlineVariant = DarkSurfaceVariant,
     error = Error,
     onError = White,
 )
@@ -70,10 +68,13 @@ fun JuskoeTheme(darkTheme: Boolean = false, content: @Composable () -> Unit) {
     if (!view.isInEditMode) {
         SideEffect {
             (view.context as? Activity)?.window?.let { window ->
-                window.statusBarColor = if (darkTheme) DarkBg.toArgb() else Brown.toArgb()
-                window.navigationBarColor = if (darkTheme) DarkBg.toArgb() else White.toArgb()
+                // Premium edge-to-edge: white (light) / near-black (dark) system bars
+                // with content-aware icon coloring.
+                val barColor = if (darkTheme) DarkBackground else White
+                window.statusBarColor = barColor.toArgb()
+                window.navigationBarColor = barColor.toArgb()
                 val insets = WindowCompat.getInsetsController(window, view)
-                insets.isAppearanceLightStatusBars = false
+                insets.isAppearanceLightStatusBars = !darkTheme
                 insets.isAppearanceLightNavigationBars = !darkTheme
             }
         }

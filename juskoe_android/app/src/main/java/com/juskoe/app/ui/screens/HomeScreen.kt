@@ -214,7 +214,7 @@ fun HomeScreen(
                                     com.juskoe.app.util.CloudActivationManager.requestAccessibilityPermission(context)
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                            colors = ButtonDefaults.buttonColors(containerColor = Purple),
                             shape = RoundedCornerShape(12.dp),
                         ) {
                             Text("Enable")
@@ -569,7 +569,7 @@ private fun HistoryCard(
                         clipboardManager.setPrimaryClip(android.content.ClipData.newPlainText("JUSKOE", entry.output))
                         dialogCopied = true
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (dialogCopied) Success else Brown),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (dialogCopied) Success else Purple),
                     shape = RoundedCornerShape(10.dp),
                 ) {
                     Icon(

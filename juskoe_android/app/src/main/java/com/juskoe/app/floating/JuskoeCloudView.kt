@@ -59,13 +59,13 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
         clipToPadding = false
         // No giant opaque white orb on the root — the small logo IS the cloud.
 
-        // Subtle translucent circle sitting behind the logo so it reads as a
-        // soft "cloud" without a heavy white background.
+        // Subtle purple glow sitting behind the logo so the cloud reads as a
+        // premium AI mark without a heavy background.
         backdropView = View(context).apply {
             layoutParams = LayoutParams(dpToPx(LOGO_SIZE_DP), dpToPx(LOGO_SIZE_DP), Gravity.CENTER)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.argb(40, 255, 255, 255))
+                setColor(Color.argb(46, 124, 58, 237)) // soft purple (#7C3AED @ ~18%)
             }
         }
 
@@ -215,6 +215,8 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
     }
 
     private fun startSpinAnimation() {
+        // Purple "thinking" tint while processing.
+        logoImageView.colorFilter = PorterDuffColorFilter(Color.argb(150, 124, 58, 237), PorterDuff.Mode.SRC_ATOP)
         spinAnimator = ObjectAnimator.ofFloat(logoImageView, "rotation", 0f, 360f).apply {
             duration = 1000
             repeatCount = ValueAnimator.INFINITE
@@ -224,7 +226,7 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
     }
 
     private fun startSuccessGlow() {
-        logoImageView.colorFilter = PorterDuffColorFilter(Color.argb(120, 0, 200, 0), PorterDuff.Mode.SRC_ATOP)
+        logoImageView.colorFilter = PorterDuffColorFilter(Color.argb(130, 124, 58, 237), PorterDuff.Mode.SRC_ATOP)
         scaleX = 1.15f; scaleY = 1.15f
         animate().scaleX(1f).scaleY(1f).setDuration(600).withEndAction {
             logoImageView.clearColorFilter()

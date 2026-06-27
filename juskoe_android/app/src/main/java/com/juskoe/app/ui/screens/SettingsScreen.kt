@@ -674,7 +674,7 @@ private fun AccountTab(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = onNavigateToAuth,
-                        colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                        colors = ButtonDefaults.buttonColors(containerColor = Purple),
                         shape = RoundedCornerShape(12.dp),
                     ) {
                         Text("Sign In")

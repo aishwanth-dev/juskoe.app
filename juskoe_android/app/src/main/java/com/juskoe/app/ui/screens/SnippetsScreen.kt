@@ -182,7 +182,7 @@ fun SnippetsScreen() {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { editingSnippet = null; showDialog = true },
-                containerColor = Brown,
+                containerColor = Purple,
                 contentColor = TextOnBrown,
                 shape = CircleShape,
             ) {
@@ -316,7 +316,7 @@ fun SnippetsScreen() {
                         Spacer(modifier = Modifier.height(12.dp))
                         Button(
                             onClick = { editingSnippet = null; showDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                            colors = ButtonDefaults.buttonColors(containerColor = Purple),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.height(36.dp),
                         ) {

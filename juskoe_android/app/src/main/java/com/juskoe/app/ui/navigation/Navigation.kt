@@ -35,9 +35,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.juskoe.app.data.UsageSummary
 import com.juskoe.app.ui.screens.*
-import com.juskoe.app.ui.theme.Brown
+import com.juskoe.app.ui.theme.Purple
+import com.juskoe.app.ui.theme.PurpleSurface
 import com.juskoe.app.ui.theme.TextMuted
-import com.juskoe.app.ui.theme.White
+import androidx.compose.material3.MaterialTheme
 import com.juskoe.app.viewmodel.AuthUiState
 
 data class BottomNavItem(
@@ -85,8 +86,8 @@ fun JuskoeNavHost(
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar(
-                    containerColor = White,
-                    contentColor = Brown,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = Purple,
                 ) {
                     bottomNavItems.forEach { item ->
                         val selected = currentDestination?.hierarchy?.any { it.route == item.route } == true
@@ -105,21 +106,21 @@ fun JuskoeNavHost(
                                 Icon(
                                     imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
                                     contentDescription = item.label,
-                                    tint = if (selected) Brown else TextMuted,
+                                    tint = if (selected) Purple else TextMuted,
                                 )
                             },
                             label = {
                                 Text(
                                     item.label,
-                                    color = if (selected) Brown else TextMuted,
+                                    color = if (selected) Purple else TextMuted,
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Brown,
-                                selectedTextColor = Brown,
+                                selectedIconColor = Purple,
+                                selectedTextColor = Purple,
                                 unselectedIconColor = TextMuted,
                                 unselectedTextColor = TextMuted,
-                                indicatorColor = White,
+                                indicatorColor = PurpleSurface,
                             ),
                         )
                     }

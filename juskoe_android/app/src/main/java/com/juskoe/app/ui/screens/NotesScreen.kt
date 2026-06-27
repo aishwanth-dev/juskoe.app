@@ -178,7 +178,7 @@ fun NotesScreen() {
                         }
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                colors = ButtonDefaults.buttonColors(containerColor = Purple),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.height(56.dp),
                 enabled = newNoteText.isNotBlank(),

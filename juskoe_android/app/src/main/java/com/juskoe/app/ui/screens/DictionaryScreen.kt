@@ -194,7 +194,7 @@ fun DictionaryScreen() {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { editingEntry = null; showDialog = true },
-                containerColor = Brown,
+                containerColor = Purple,
                 contentColor = TextOnBrown,
                 shape = CircleShape,
             ) {
@@ -315,7 +315,7 @@ fun DictionaryScreen() {
                         Spacer(modifier = Modifier.height(12.dp))
                         Button(
                             onClick = { editingEntry = null; showDialog = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                            colors = ButtonDefaults.buttonColors(containerColor = Purple),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.height(36.dp),
                         ) {

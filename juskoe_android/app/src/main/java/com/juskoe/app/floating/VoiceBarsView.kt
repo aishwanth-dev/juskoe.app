@@ -16,7 +16,7 @@ class VoiceBarsView(context: Context, attrs: AttributeSet? = null) : View(contex
     private val barCount = 5
     private val amplitudes = FloatArray(barCount) { 0.1f }
     private val barPaint = Paint().apply {
-        color = Color.parseColor("#4285F4") // brand blue
+        color = Color.parseColor("#7C3AED") // signature purple
         style = Paint.Style.FILL
         isAntiAlias = true
     }
