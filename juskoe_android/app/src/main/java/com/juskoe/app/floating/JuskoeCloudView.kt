@@ -48,6 +48,13 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
     init {
         val sizePx = dpToPx(CLOUD_SIZE_DP)
         layoutParams = LayoutParams(sizePx, sizePx)
+        // When added directly to WindowManager the params above are ignored, so
+        // enforce a real minimum size (correct circle + reliable touch target)
+        // and don't clip the retry icon / offline badge that sit outside bounds.
+        minimumWidth = sizePx
+        minimumHeight = sizePx
+        clipChildren = false
+        clipToPadding = false
 
         background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL

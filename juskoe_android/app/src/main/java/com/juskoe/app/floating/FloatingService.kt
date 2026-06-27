@@ -187,7 +187,9 @@ class FloatingService : Service() {
             }
         }
         cloudView = cloud
+        cloud.alpha = 0f // hidden until an editable field is focused (strict visibility)
         wm.addView(cloud, lp)
+        Log.d("JUSKOE", "OVERLAY: cloud added to window (hidden until editable focus)")
     }
 
     /** Reposition the cloud to top-right of the caret/field; called by accessibility. */
@@ -217,14 +219,20 @@ class FloatingService : Service() {
 
     fun showCloud() {
         val cloud = cloudView ?: return
-        if (cloud.alpha < 0.5f) cloud.animate().alpha(1f).setDuration(150).start()
+        if (cloud.alpha < 0.5f) {
+            Log.d("JUSKOE", "OVERLAY: showCloud")
+            cloud.animate().alpha(1f).setDuration(150).start()
+        }
     }
 
     fun hideCloud() {
         val cloud = cloudView ?: return
         // Don't hide mid-interaction.
         if (recording || cloud.getCurrentState() != JuskoeCloudView.CloudState.IDLE) return
-        if (cloud.alpha > 0.5f) cloud.animate().alpha(0f).setDuration(150).start()
+        if (cloud.alpha > 0.5f) {
+            Log.d("JUSKOE", "OVERLAY: hideCloud")
+            cloud.animate().alpha(0f).setDuration(150).start()
+        }
     }
 
     // ── Interaction handlers ──
