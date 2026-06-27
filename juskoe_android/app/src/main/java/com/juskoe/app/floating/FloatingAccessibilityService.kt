@@ -171,7 +171,13 @@ class FloatingAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() { /* no-op */ }
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        Log.d("SERVICE", "AccessibilityService onUnbind")
+        return true
+    }
+
     override fun onDestroy() {
+        try { FloatingService.instance?.hideCloud() } catch (_: Exception) {}
         if (instance === this) instance = null
         Log.w("SERVICE", "AccessibilityService destroyed")
         super.onDestroy()

@@ -105,21 +105,34 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
         isFocusable = false
         isFocusableInTouchMode = false
 
-        // Gestures: single tap, double tap, long press
-        val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                interactionListener?.onSingleTap(); return true
-            }
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                interactionListener?.onDoubleTap(); return true
-            }
-            override fun onLongPress(e: MotionEvent) {
-                interactionListener?.onLongPress()
-            }
-        })
-        setOnTouchListener { _, event -> gestureDetector.onTouchEvent(event); true }
-
         post { setState(CloudState.IDLE) }
+    }
+
+    // Gestures: single tap (AI), double tap (Grammar), long press (menu).
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            interactionListener?.onSingleTap(); return true
+        }
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            interactionListener?.onDoubleTap(); return true
+        }
+        override fun onLongPress(e: MotionEvent) {
+            interactionListener?.onLongPress()
+        }
+    })
+
+    /**
+     * Consume touches only inside the circular touch target; anything in the
+     * square's corners passes through to the app underneath the overlay.
+     */
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        val cx = width / 2f
+        val cy = height / 2f
+        val radius = minOf(width, height) / 2f
+        val dx = event.x - cx
+        val dy = event.y - cy
+        if (dx * dx + dy * dy > radius * radius) return false // pass through
+        return gestureDetector.onTouchEvent(event)
     }
 
     // ── Public API ──

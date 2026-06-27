@@ -114,10 +114,10 @@ class FloatingService : Service() {
         recorder = AudioRecorder(this)
         scope.launch(Dispatchers.IO) { try { pipeline?.initSTT() } catch (_: Exception) {} }
         try {
-            addCloud()
+            ensureAttached()
             Log.d("JUSKOE", "✅ FloatingService created")
         } catch (e: Exception) {
-            Log.e(TAG, "addCloud failed", e)
+            Log.e(TAG, "ensureAttached failed", e)
             stopSelf()
         }
     }
@@ -156,18 +156,15 @@ class FloatingService : Service() {
 
     // ── Overlay window ──
 
-    private fun addCloud() {
-        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        else
-            @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
-
-        val lp = WindowManager.LayoutParams(
+    /** Build overlay LayoutParams for the given window [type]. */
+    private fun buildLayoutParams(type: Int): WindowManager.LayoutParams =
+        WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
@@ -177,18 +174,50 @@ class FloatingService : Service() {
             y = dpToPx(120)
         }
 
-        val cloud = JuskoeCloudView(this).apply {
+    /**
+     * Ensure the cloud view is created and attached to a SYSTEM window so it can
+     * float over every app (WhatsApp, Chrome, Gmail, …). Uses
+     * TYPE_ACCESSIBILITY_OVERLAY — drawn by the active accessibility service, so
+     * it needs no "draw over other apps" permission — and falls back to
+     * TYPE_APPLICATION_OVERLAY (SYSTEM_ALERT_WINDOW) if that fails.
+     * Safe to call repeatedly; it no-ops when already attached.
+     */
+    private fun ensureAttached() {
+        if (cloudView != null && cloudView?.windowToken != null) return
+
+        val cloud = cloudView ?: JuskoeCloudView(this).apply {
             interactionListener = object : JuskoeCloudView.CloudInteractionListener {
                 override fun onSingleTap() = handleCloudSingleTap()
                 override fun onDoubleTap() = handleCloudDoubleTap()
                 override fun onLongPress() = handleCloudLongPress()
                 override fun onRetry() = handleRetry()
             }
+            alpha = 0f // hidden until an editable field is focused
         }
         cloudView = cloud
-        cloud.alpha = 0f // hidden until an editable field is focused (strict visibility)
-        wm.addView(cloud, lp)
-        Log.d("JUSKOE", "OVERLAY: cloud added to window (hidden until editable focus)")
+
+        // Primary: accessibility overlay (no overlay permission needed, system-wide).
+        val accType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+        try {
+            wm.addView(cloud, buildLayoutParams(accType))
+            Log.d("OVERLAY", "cloud attached (TYPE_ACCESSIBILITY_OVERLAY)")
+            return
+        } catch (e: Exception) {
+            Log.e("OVERLAY", "accessibility-overlay attach failed: ${e.message} — falling back")
+        }
+
+        // Fallback: application overlay (requires SYSTEM_ALERT_WINDOW grant).
+        val fallbackType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+        try {
+            wm.addView(cloud, buildLayoutParams(fallbackType))
+            Log.d("OVERLAY", "cloud attached (fallback type=$fallbackType)")
+        } catch (e: Exception) {
+            Log.e("OVERLAY", "fallback attach failed: ${e.message}")
+            cloudView = null
+        }
     }
 
     /**
@@ -197,6 +226,7 @@ class FloatingService : Service() {
      * actually changes (no jitter) and fades in if currently hidden.
      */
     fun showCloudAt(x: Int, y: Int) {
+        ensureAttached()
         val cloud = cloudView ?: return
         val lp = cloud.layoutParams as? WindowManager.LayoutParams ?: return
         if (lp.x != x || lp.y != y) {
@@ -212,6 +242,7 @@ class FloatingService : Service() {
 
     /** Fade the cloud in at its current position (used by diagnostics screen). */
     fun showCloud() {
+        ensureAttached()
         val cloud = cloudView ?: return
         if (cloud.alpha < 0.5f) {
             Log.d("OVERLAY", "showCloud (current position)")
@@ -229,12 +260,18 @@ class FloatingService : Service() {
         }
     }
 
-    /** updateViewLayout that survives a stale/removed window token. */
+    /** updateViewLayout that survives a stale/removed window token by re-attaching. */
     private fun safeUpdateViewLayout(view: View, params: WindowManager.LayoutParams) {
         try {
             wm.updateViewLayout(view, params)
         } catch (e: Exception) {
-            Log.e("OVERLAY", "updateViewLayout failed: ${e.message}")
+            Log.e("OVERLAY", "updateViewLayout failed: ${e.message} — re-attaching")
+            try { wm.removeView(view) } catch (_: Exception) {}
+            cloudView = null
+            ensureAttached()
+            try {
+                cloudView?.let { wm.updateViewLayout(it, it.layoutParams as WindowManager.LayoutParams) }
+            } catch (_: Exception) {}
         }
     }
 
