@@ -150,7 +150,9 @@ Output: Corrected text only. No explanations. No meta."""
     // ============================================
 
     suspend fun callGemini(systemPrompt: String, userPrompt: String, mode: String = "ai"): Result<String> {
-        val token = SupabaseManager.currentAccessToken()
+        // Get a token, refreshing if the cached session has none (e.g. app was
+        // backgrounded while the floating cloud is used over another app).
+        var token = SupabaseManager.currentAccessToken() ?: SupabaseManager.refreshSession()
         if (token == null) {
             Log.w("JUSKOE", "REQUEST_BLOCKED: not signed in (ai-proxy requires a Supabase session)")
             return Result.failure<String>(AiAuthRequiredException())
@@ -158,6 +160,7 @@ Output: Corrected text only. No explanations. No meta."""
 
         val maxAttempts = 3
         var lastError: Exception? = null
+        var refreshedOnce = false
 
         repeat(maxAttempts) { attempt ->
             try {
@@ -174,7 +177,17 @@ Output: Corrected text only. No explanations. No meta."""
                     header("apikey", Config.SUPABASE_ANON_KEY)
                     setBody(requestBody.toString())
                 }
-                Log.d("JUSKOE", "REQUEST_SENT: mode=$mode → ${Config.AI_PROXY_URL} (attempt ${attempt + 1})")
+                Log.d("JUSKOE", "REQUEST_SENT: mode=$mode → ${Config.AI_PROXY_URL} (attempt ${attempt + 1}, status=${response.status.value})")
+
+                // Auth failure → refresh the JWT once and retry immediately.
+                if ((response.status.value == 401 || response.status.value == 403) && !refreshedOnce) {
+                    refreshedOnce = true
+                    Log.w("JUSKOE", "AI proxy auth ${response.status.value} — refreshing session and retrying")
+                    val fresh = SupabaseManager.refreshSession()
+                    if (fresh == null) return Result.failure<String>(AiAuthRequiredException())
+                    token = fresh
+                    return@repeat
+                }
 
                 val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
                 val success = json["success"]?.jsonPrimitive?.boolean ?: false

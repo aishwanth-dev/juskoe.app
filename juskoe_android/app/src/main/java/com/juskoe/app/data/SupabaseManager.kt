@@ -86,6 +86,21 @@ object SupabaseManager {
         return client.auth.currentSessionOrNull()?.accessToken
     }
 
+    /**
+     * Force-refresh the session using the stored refresh token and return the new
+     * access token. Used by the AI proxy path so the floating cloud keeps working
+     * even when the app has been in the background long enough for the JWT to
+     * expire. Never throws.
+     */
+    suspend fun refreshSession(): String? {
+        return try {
+            client.auth.refreshCurrentSession()
+            currentAccessToken()
+        } catch (e: Exception) {
+            currentAccessToken()
+        }
+    }
+
     fun currentUserEmail(): String? {
         return client.auth.currentUserOrNull()?.email
     }

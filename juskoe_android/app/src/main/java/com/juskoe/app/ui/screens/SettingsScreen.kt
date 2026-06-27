@@ -377,7 +377,7 @@ private fun GeneralTab(isPro: Boolean) {
                                     checked = isSelected,
                                     onCheckedChange = null,
                                     colors = SwitchDefaults.colors(
-                                        checkedTrackColor = Brown,
+                                        checkedTrackColor = Purple,
                                         uncheckedTrackColor = BorderLight,
                                     ),
                                     modifier = Modifier.size(width = 40.dp, height = 20.dp),
@@ -385,7 +385,7 @@ private fun GeneralTab(isPro: Boolean) {
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(name, style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (isSelected) Brown else TextPrimary)
+                                    color = if (isSelected) Purple else TextPrimary)
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(code.uppercase(), style = MaterialTheme.typography.labelSmall, color = TextMuted)
                             }
@@ -851,7 +851,7 @@ private fun ToggleItem(
             enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = White,
-                checkedTrackColor = Brown,
+                checkedTrackColor = Purple,
                 uncheckedThumbColor = White,
                 uncheckedTrackColor = Border,
                 disabledCheckedThumbColor = TextLight,

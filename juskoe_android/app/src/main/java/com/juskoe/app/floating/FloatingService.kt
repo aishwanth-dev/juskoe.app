@@ -365,6 +365,18 @@ class FloatingService : Service() {
         silenceJob?.cancel()
         rec.amplitudeListener = null
         val pcm = try { rec.stopRecording() } catch (_: Exception) { null } ?: return
+        // Diagnose background-mic problems: 16kHz/16-bit mono → 32 bytes/ms.
+        val durationMs = pcm.size / 32
+        Log.d("JUSKOE", "AUDIO_CAPTURED: bytes=${pcm.size} (~${durationMs}ms) speechDetected=$speechStarted")
+        if (pcm.size < 1600 || !speechStarted) {
+            // Effectively no audio — almost always a blocked background mic.
+            Log.e("JUSKOE", "ERROR_STAGE=AUDIO ERROR_MESSAGE=no audio captured (bytes=${pcm.size}, speech=$speechStarted)")
+            lastPcm = pcm; lastMode = activeMode
+            cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
+            cloudView?.showRetry()
+            Toast.makeText(this, "No audio captured — open JUSKOE once to grant mic, then try again", Toast.LENGTH_LONG).show()
+            return
+        }
         lastPcm = pcm; lastMode = activeMode
         cloudView?.setState(JuskoeCloudView.CloudState.PROCESSING)
         scope.launch { runAndDeliver(pcm, activeMode) }
