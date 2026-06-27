@@ -14,10 +14,10 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 /**
  * Accessibility service for JUSKOE Cloud:
- *  - Tracks the focused editable field and computes where the cloud should sit
- *    beside it, then drives [FloatingService] visibility/position.
- *  - Inserts AI-generated text directly into the focused field, with multiple
- *    fallback strategies, and supports retry-with-replacement.
+ *  - Tracks the focused editable field (across every app + window) and tells
+ *    [FloatingService] where to place the cloud.
+ *  - Inserts AI text directly into that field, re-focusing it and writing at the
+ *    caret, with clipboard paste + clipboard fallbacks. Supports retry-replace.
  * It never reads or logs field content beyond what these two tasks require.
  */
 class FloatingAccessibilityService : AccessibilityService() {
@@ -31,11 +31,15 @@ class FloatingAccessibilityService : AccessibilityService() {
     private var lastInsertedText: String = ""
     private var lastInsertionStart: Int = -1
 
+    // Field captured at the moment the user starts an interaction (definitely
+    // focused then) — used as an insertion fallback if a tap blurs the field.
+    @Volatile
+    private var capturedTarget: AccessibilityNodeInfo? = null
+
     override fun onServiceConnected() {
         try {
             instance = this
             Log.d("SERVICE", "AccessibilityService connected (api=${Build.VERSION.SDK_INT})")
-            // Make sure the overlay service is alive whenever accessibility is on.
             try {
                 val i = Intent(this, FloatingService::class.java)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(i)
@@ -60,10 +64,12 @@ class FloatingAccessibilityService : AccessibilityService() {
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
                 AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
                 AccessibilityEvent.TYPE_VIEW_SCROLLED,
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ->
-                    handleFocusAndPositionChange(event)
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> updateCloudPosition(event.eventType)
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ->
-                    handleWindowStateChange()
+                    handler.postDelayed({
+                        try { updateCloudPosition(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) }
+                        catch (e: Exception) { Log.e("ACCESSIBILITY", "delayed position error", e) }
+                    }, 200)
                 else -> {}
             }
         } catch (e: Exception) {
@@ -71,51 +77,9 @@ class FloatingAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun handleFocusAndPositionChange(event: AccessibilityEvent) {
-        Log.d("ACCESSIBILITY", "event=${event.eventType} pkg=${event.packageName}")
-        val node = findFocusedEditable()
-        if (node == null) {
-            hideCloud("no focused editable node")
-            return
-        }
-        try { evaluateAndPosition(node, event.eventType) } finally { recycle(node) }
-    }
-
-    /** Window changed (app switch / screen transition) — re-check after it settles. */
-    private fun handleWindowStateChange() {
-        handler.postDelayed({
-            try {
-                val node = findFocusedEditable()
-                if (node == null) {
-                    hideCloud("window changed, no editable focus")
-                } else {
-                    try { evaluateAndPosition(node, AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) }
-                    finally { recycle(node) }
-                }
-            } catch (e: Exception) {
-                Log.e("ACCESSIBILITY", "handleWindowStateChange error", e)
-            }
-        }, 200)
-    }
-
-    /** Find the focused, editable input node in the active window, or null. */
-    private fun findFocusedEditable(): AccessibilityNodeInfo? {
-        val root = try { rootInActiveWindow } catch (_: Exception) { null } ?: return null
-        try { root.refresh() } catch (_: Exception) {}
-        val focused = try { root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) } catch (_: Exception) { null }
-            ?: return null
-        return if (focused.isEditable && focused.isFocused) focused else { recycle(focused); null }
-    }
-
-    private fun evaluateAndPosition(node: AccessibilityNodeInfo, eventType: Int) {
-        val bounds = Rect()
-        node.getBoundsInScreen(bounds)
-        if (bounds.isEmpty || bounds.width() == 0 || bounds.height() == 0) {
-            hideCloud("invalid field bounds")
-            return
-        }
-
-        // Throttle the chatty events; never throttle the first focus.
+    /** Recompute the cloud position from the *current* focused editable field. */
+    private fun updateCloudPosition(eventType: Int) {
+        // Throttle chatty events; never throttle focus / window changes.
         val now = System.currentTimeMillis()
         val highFreq = eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
             eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED ||
@@ -124,16 +88,78 @@ class FloatingAccessibilityService : AccessibilityService() {
         if (highFreq && now - lastUpdateMs < throttleMs) return
         lastUpdateMs = now
 
-        val (x, y) = computeCloudPosition(bounds)
-        Log.d("CARET", "field=${bounds.toShortString()} → cloud x=$x y=$y")
-        FloatingService.instance?.showCloudAt(x, y)
+        val node = resolveEditableTarget()
+        if (node == null) {
+            FloatingService.instance?.hideCloud()
+            return
+        }
+        try {
+            try { node.refresh() } catch (_: Exception) {} // fresh bounds (post-keyboard layout)
+            val bounds = Rect()
+            node.getBoundsInScreen(bounds)
+            if (bounds.isEmpty || bounds.width() == 0 || bounds.height() == 0) {
+                Log.d("CARET", "invalid bounds — hiding")
+                FloatingService.instance?.hideCloud()
+                return
+            }
+            val (x, y) = computeCloudPosition(bounds)
+            Log.d("CARET", "field=${bounds.toShortString()} editable=${node.isEditable} → cloud x=$x y=$y")
+            FloatingService.instance?.showCloudAt(x, y)
+        } finally {
+            recycle(node)
+        }
     }
 
     /**
-     * Anchor the cloud to the field's top-right corner, just above the field
-     * when there is room (else just below), clamped fully on-screen. Per-character
-     * caret pixels are not reliably exposed by AccessibilityNodeInfo, so the field
-     * edge is the robust anchor.
+     * Find the focused editable field, searching the active window first and then
+     * every interactive window (the field is frequently NOT in rootInActiveWindow,
+     * e.g. when an IME/dialog window is active). Caller must [recycle] the result.
+     */
+    private fun resolveEditableTarget(): AccessibilityNodeInfo? {
+        // 1) Active window input focus.
+        try {
+            val root = rootInActiveWindow
+            if (root != null) {
+                try { root.refresh() } catch (_: Exception) {}
+                val f = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                if (f != null && f.isEditable && f.isFocused) return f
+                recycle(f)
+            }
+        } catch (_: Exception) {}
+
+        // 2) Any interactive window: input focus, then a deep search for a focused editable.
+        try {
+            for (w in windows) {
+                val root = try { w.root } catch (_: Exception) { null } ?: continue
+                val f = try { root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) } catch (_: Exception) { null }
+                if (f != null && f.isEditable && f.isFocused) return f
+                recycle(f)
+                val deep = findFocusedEditable(root)
+                if (deep != null) return deep
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    /** Depth-first search for an editable + focused node. */
+    private fun findFocusedEditable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        node ?: return null
+        try {
+            if (node.isEditable && node.isFocused) return node
+            for (i in 0 until node.childCount) {
+                val child = try { node.getChild(i) } catch (_: Exception) { null } ?: continue
+                val r = findFocusedEditable(child)
+                if (r != null) return r
+                if (child !== node) recycle(child)
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    /**
+     * Anchor the cloud to the field's top-right corner, just above the field when
+     * there is room (else just below), clamped fully on-screen. Per-character caret
+     * pixels are not reliably exposed, so the field edge is the robust anchor.
      */
     private fun computeCloudPosition(bounds: Rect): Pair<Int, Int> {
         val dm = resources.displayMetrics
@@ -155,11 +181,6 @@ class FloatingAccessibilityService : AccessibilityService() {
         return Pair(x, y)
     }
 
-    private fun hideCloud(reason: String) {
-        Log.d("OVERLAY", "hideCloud: $reason")
-        FloatingService.instance?.hideCloud()
-    }
-
     private fun getStatusBarHeight(): Int {
         val id = resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (id > 0) resources.getDimensionPixelSize(id) else 0
@@ -167,6 +188,37 @@ class FloatingAccessibilityService : AccessibilityService() {
 
     private fun recycle(node: AccessibilityNodeInfo?) {
         try { node?.recycle() } catch (_: Exception) {}
+    }
+
+    /** Recycle a node unless it is the long-lived captured target. */
+    private fun recycleIfNotCaptured(node: AccessibilityNodeInfo?) {
+        if (node != null && node !== capturedTarget) recycle(node)
+    }
+
+    /** Snapshot the focused field at interaction start (it's definitely focused then). */
+    fun captureTarget() {
+        try {
+            val n = resolveEditableTarget()
+            val old = capturedTarget
+            capturedTarget = n
+            if (old != null && old !== n) recycle(old)
+            Log.d("INSERTION", "captureTarget: ${if (n != null) "captured" else "none"}")
+        } catch (e: Exception) {
+            Log.e("INSERTION", "captureTarget error", e)
+        }
+    }
+
+    /** Live focused editable, else the captured field (refreshed) if focus was lost. */
+    private fun insertionTarget(): AccessibilityNodeInfo? {
+        val live = resolveEditableTarget()
+        if (live != null) return live
+        val cap = capturedTarget ?: return null
+        return try {
+            if (cap.refresh() && cap.isEditable) {
+                Log.d("INSERTION", "using captured target (live focus lost)")
+                cap
+            } else null
+        } catch (_: Exception) { null }
     }
 
     override fun onInterrupt() { /* no-op */ }
@@ -186,53 +238,54 @@ class FloatingAccessibilityService : AccessibilityService() {
     // ── Insertion ──
 
     /**
-     * Insert [text] into the focused editable node, appending to existing content.
-     * Tries ACTION_SET_TEXT, then clipboard + ACTION_PASTE (restoring the user's
-     * clipboard). Records the inserted range so [replaceText] can later swap it.
-     * Returns false if there is no editable focus or all strategies fail.
+     * Insert [text] into the focused editable field at the caret. Re-focuses the
+     * field first (taps to the cloud can blur it), writes via ACTION_SET_TEXT, and
+     * falls back to clipboard + ACTION_PASTE (restoring the user's clipboard).
+     * Records the inserted range so [replaceText] can later swap it.
+     * Returns false only if no editable field can be found or every strategy fails.
      */
     fun insertText(text: String): Boolean {
         return try {
             Log.d("INSERTION", "INSERTION_STARTED: len=${text.length}")
-            val node = findFocusedEditable() ?: run {
-                Log.e("INSERTION", "no editable focused node")
+            val node = insertionTarget() ?: run {
+                Log.e("INSERTION", "no editable field found in any window")
                 return false
             }
             try {
-                val existing = try { node.text?.toString() ?: "" } catch (_: Exception) { "" }
+                // Re-focus: a tap on the floating cloud can momentarily blur the field.
+                try { node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) } catch (_: Exception) {}
 
-                // Strategy 1: ACTION_SET_TEXT (append).
-                val combined = existing + text
+                val existing = try { node.text?.toString() ?: "" } catch (_: Exception) { "" }
+                // Write at the caret/selection (replacing any selected range).
+                val selS = node.textSelectionStart
+                val selE = node.textSelectionEnd
+                val start = if (selS in 0..existing.length) selS else existing.length
+                val end = if (selE in start..existing.length) selE else start
+                val combined = existing.substring(0, start) + text + existing.substring(end)
+                val caret = start + text.length
+
                 val setArgs = Bundle().apply {
                     putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, combined)
                 }
                 if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)) {
                     lastInsertedText = text
-                    lastInsertionStart = existing.length
-                    // Place caret at the end so the user can keep typing/send.
-                    try {
-                        val sel = Bundle().apply {
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, combined.length)
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, combined.length)
-                        }
-                        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, sel)
-                    } catch (_: Exception) {}
-                    Log.d("INSERTION", "INSERTION_COMPLETED via ACTION_SET_TEXT (start=${existing.length})")
+                    lastInsertionStart = start
+                    setCaret(node, caret)
+                    Log.d("INSERTION", "INSERTION_COMPLETED via ACTION_SET_TEXT (start=$start)")
                     return true
                 }
 
-                // Strategy 2: clipboard + ACTION_PASTE, then restore the clipboard.
                 if (tryPasteWithClipboardRestore(node, text)) {
                     lastInsertedText = text
-                    lastInsertionStart = existing.length
+                    lastInsertionStart = start
                     Log.d("INSERTION", "INSERTION_COMPLETED via ACTION_PASTE")
                     return true
                 }
 
-                Log.w("INSERTION", "all in-field strategies failed")
+                Log.w("INSERTION", "all in-field strategies failed (editable=${node.isEditable})")
                 false
             } finally {
-                recycle(node)
+                recycleIfNotCaptured(node)
             }
         } catch (e: Exception) {
             Log.e("INSERTION", "insertText error", e)
@@ -242,26 +295,27 @@ class FloatingAccessibilityService : AccessibilityService() {
 
     /**
      * Regeneration: replace the text previously inserted by JUSKOE with [newText],
-     * leaving any text the user typed themselves untouched. Falls back to a plain
-     * append when the previous range can't be confidently located.
+     * leaving any user-typed text untouched. Falls back to a normal insert when the
+     * previous range can't be confidently located.
      */
     fun replaceText(newText: String): Boolean {
         return try {
-            val node = findFocusedEditable() ?: run {
-                Log.e("RETRY", "no editable node for replacement — appending instead")
+            val node = insertionTarget() ?: run {
+                Log.e("RETRY", "no editable field — appending instead")
                 return insertText(newText)
             }
             try {
+                try { node.performAction(AccessibilityNodeInfo.ACTION_FOCUS) } catch (_: Exception) {}
                 val full = try { node.text?.toString() ?: "" } catch (_: Exception) { "" }
                 val start = lastInsertionStart
                 val oldLen = lastInsertedText.length
                 val canReplace = start in 0..full.length &&
                     start + oldLen <= full.length &&
-                    full.substring(start, start + oldLen) == lastInsertedText &&
-                    oldLen > 0
+                    oldLen > 0 &&
+                    full.substring(start, start + oldLen) == lastInsertedText
                 if (!canReplace) {
-                    Log.d("RETRY", "previous range not found — appending new text")
-                    recycle(node)
+                    Log.d("RETRY", "previous range not found — appending")
+                    recycleIfNotCaptured(node)
                     return insertText(newText)
                 }
                 val rebuilt = full.substring(0, start) + newText + full.substring(start + oldLen)
@@ -270,27 +324,29 @@ class FloatingAccessibilityService : AccessibilityService() {
                 }
                 if (node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
                     lastInsertedText = newText
-                    // start unchanged; caret to end of replacement
-                    try {
-                        val caret = start + newText.length
-                        val sel = Bundle().apply {
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret)
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret)
-                        }
-                        node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, sel)
-                    } catch (_: Exception) {}
+                    setCaret(node, start + newText.length)
                     Log.d("RETRY", "text replaced (start=$start oldLen=$oldLen newLen=${newText.length})")
                     return true
                 }
-                recycle(node)
+                recycleIfNotCaptured(node)
                 insertText(newText)
             } finally {
-                recycle(node)
+                recycleIfNotCaptured(node)
             }
         } catch (e: Exception) {
             Log.e("RETRY", "replaceText error", e)
             false
         }
+    }
+
+    private fun setCaret(node: AccessibilityNodeInfo, pos: Int) {
+        try {
+            val sel = Bundle().apply {
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, pos)
+                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, pos)
+            }
+            node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, sel)
+        } catch (_: Exception) {}
     }
 
     private fun tryPasteWithClipboardRestore(node: AccessibilityNodeInfo, text: String): Boolean {

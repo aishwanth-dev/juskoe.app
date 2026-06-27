@@ -303,6 +303,9 @@ class FloatingService : Service() {
         }
         activeMode = mode
         Log.d("JUSKOE", "AI_MODE_SELECTED: $mode")
+        // Snapshot the focused field now — a tap on the cloud can blur it, and we
+        // need a reliable insertion target when the AI result returns.
+        try { FloatingAccessibilityService.instance?.captureTarget() } catch (_: Exception) {}
         cloudView?.setState(JuskoeCloudView.CloudState.LISTENING)
         cloudView?.setOfflineBadge(mode == MODE_OFFLINE || !isNetworkAvailable())
         // Silence-detection state: track speech + the last loud frame.
