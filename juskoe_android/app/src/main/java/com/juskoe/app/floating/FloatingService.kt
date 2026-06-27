@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -193,57 +192,49 @@ class FloatingService : Service() {
     }
 
     /**
-     * Reposition the cloud beside the focused field. Anchors to the field's
-     * top-right corner, sitting just above the field when there is room (else
-     * just below it), then clamps fully on-screen. Only issues an actual layout
-     * update when the position changes, to avoid jitter on every event.
+     * Show the cloud at an absolute screen position computed by the accessibility
+     * service (top-right of the focused field). Moves only when the position
+     * actually changes (no jitter) and fades in if currently hidden.
      */
-    fun positionCloud(caretX: Float, caretY: Float, fieldRect: Rect) {
+    fun showCloudAt(x: Int, y: Int) {
         val cloud = cloudView ?: return
-        val size = dpToPx(JuskoeCloudView.CLOUD_SIZE_DP)
-        val margin = dpToPx(8)
-        val edge = dpToPx(4)
-        val screenW = resources.displayMetrics.widthPixels
-        val screenH = resources.displayMetrics.heightPixels
-        val statusBar = getStatusBarHeight()
-
-        // Right edge of the field, cloud aligned just inside that edge.
-        var x = fieldRect.right.toFloat() - size
-        // Prefer just above the field; if no room above, place just below it.
-        var y = fieldRect.top.toFloat() - size - margin
-        if (y < statusBar + edge) y = fieldRect.bottom.toFloat() + margin
-
-        // Clamp on-screen.
-        if (x + size > screenW - edge) x = (screenW - size - edge).toFloat()
-        if (x < edge) x = edge.toFloat()
-        if (y + size > screenH - edge) y = (screenH - size - edge).toFloat()
-        if (y < statusBar) y = statusBar.toFloat()
-
         val lp = cloud.layoutParams as? WindowManager.LayoutParams ?: return
-        val nx = x.toInt(); val ny = y.toInt()
-        if (lp.x == nx && lp.y == ny) return // no change → skip update (no jitter)
-        lp.x = nx; lp.y = ny
-        try {
-            wm.updateViewLayout(cloud, lp)
-            Log.d("JUSKOE", "OVERLAY: position x=$nx y=$ny field=${fieldRect.toShortString()}")
-        } catch (_: Exception) {}
+        if (lp.x != x || lp.y != y) {
+            lp.x = x; lp.y = y
+            safeUpdateViewLayout(cloud, lp)
+            Log.d("OVERLAY", "showCloudAt x=$x y=$y")
+        }
+        if (cloud.alpha < 0.5f) {
+            cloud.animate().alpha(1f).setDuration(150).start()
+            Log.d("OVERLAY", "cloud shown")
+        }
     }
 
+    /** Fade the cloud in at its current position (used by diagnostics screen). */
     fun showCloud() {
         val cloud = cloudView ?: return
         if (cloud.alpha < 0.5f) {
-            Log.d("JUSKOE", "OVERLAY: showCloud")
+            Log.d("OVERLAY", "showCloud (current position)")
             cloud.animate().alpha(1f).setDuration(150).start()
         }
     }
 
     fun hideCloud() {
         val cloud = cloudView ?: return
-        // Don't hide mid-interaction.
+        // Don't hide mid-interaction (recording / processing / showing a result).
         if (recording || cloud.getCurrentState() != JuskoeCloudView.CloudState.IDLE) return
         if (cloud.alpha > 0.5f) {
-            Log.d("JUSKOE", "OVERLAY: hideCloud")
+            Log.d("OVERLAY", "hideCloud")
             cloud.animate().alpha(0f).setDuration(150).start()
+        }
+    }
+
+    /** updateViewLayout that survives a stale/removed window token. */
+    private fun safeUpdateViewLayout(view: View, params: WindowManager.LayoutParams) {
+        try {
+            wm.updateViewLayout(view, params)
+        } catch (e: Exception) {
+            Log.e("OVERLAY", "updateViewLayout failed: ${e.message}")
         }
     }
 
@@ -259,8 +250,10 @@ class FloatingService : Service() {
 
     private fun handleRetry() {
         val pcm = lastPcm ?: return
+        Log.d("RETRY", "retry triggered (mode=$lastMode)")
+        cloudView?.hideRetry()
         cloudView?.setState(JuskoeCloudView.CloudState.PROCESSING)
-        scope.launch { runAndDeliver(pcm, lastMode) }
+        scope.launch { runAndDeliver(pcm, lastMode, replace = true) }
     }
 
     // ── Voice workflow ──
@@ -338,7 +331,7 @@ class FloatingService : Service() {
     }
 
     /** Run STT/AI for [mode] off the main thread, then deliver + set cloud state. */
-    private suspend fun runAndDeliver(pcm: ByteArray, mode: String) {
+    private suspend fun runAndDeliver(pcm: ByteArray, mode: String, replace: Boolean = false) {
         lastErrorMsg = null
         val output = try { runMode(pcm, mode) } catch (e: Exception) {
             lastErrorMsg = e.message
@@ -349,18 +342,23 @@ class FloatingService : Service() {
             val reason = lastErrorMsg ?: "No output"
             Log.e("JUSKOE", "🔴 RED_CLOUD reason=\"$reason\" mode=$mode")
             cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
+            cloudView?.showRetry() // let the user retry the whole pipeline
             AnalyticsManager.trackError("cloud", "no_output_$mode")
             Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
             return
         }
         if (mode != MODE_NOTES) lastOutput = output
-        val inserted = deliver(output)
+        val inserted = deliver(output, replace = replace)
         if (!inserted) {
-            Log.e("JUSKOE", "ERROR_STAGE=INSERTION ERROR_MESSAGE=insert+paste failed; output kept on clipboard")
+            Log.e("JUSKOE", "ERROR_STAGE=INSERTION ERROR_MESSAGE=insert failed; output kept on clipboard")
         }
-        cloudView?.setState(
-            if (inserted) JuskoeCloudView.CloudState.SUCCESS else JuskoeCloudView.CloudState.ERROR
-        )
+        if (inserted) {
+            cloudView?.setState(JuskoeCloudView.CloudState.SUCCESS)
+            cloudView?.showRetry() // tapping retry regenerates a variation in place
+        } else {
+            cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
+            cloudView?.showRetry()
+        }
     }
 
     private suspend fun runMode(pcm: ByteArray, mode: String): String? {
@@ -396,6 +394,19 @@ class FloatingService : Service() {
         }
     }
 
+    /** Explicit user action (long-press menu) to keep the last AI output as a note. */
+    private fun saveLastOutputToNote() {
+        val text = lastOutput
+        if (text.isBlank()) {
+            Toast.makeText(this, "Nothing to save yet", Toast.LENGTH_SHORT).show()
+            return
+        }
+        scope.launch {
+            saveNote(text)
+            Toast.makeText(this@FloatingService, "Saved to Notes", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // ── Transforms (operate on the last AI output) ──
 
     private fun transformLastOutput(promptPrefix: String) {
@@ -423,10 +434,10 @@ class FloatingService : Service() {
     // ── Direct insertion (NO clipboard) ──
 
     /** Insert via accessibility. Returns true if inserted into a focused field. */
-    private fun deliver(text: String): Boolean {
+    private fun deliver(text: String, replace: Boolean = false): Boolean {
         val acc = FloatingAccessibilityService.instance
-        Log.d("JUSKOE", "INSERTION_STARTED: len=${text.length}, accessibility=${acc != null}")
-        val ok = acc?.insertText(text) ?: false
+        Log.d("JUSKOE", "INSERTION_STARTED: len=${text.length}, replace=$replace, accessibility=${acc != null}")
+        val ok = if (replace) acc?.replaceText(text) ?: false else acc?.insertText(text) ?: false
         Log.d("JUSKOE", "INSERTION_COMPLETED: result=$ok")
         if (!ok) {
             // Never lose the generated text — fall back to clipboard so the user can paste.
@@ -461,6 +472,7 @@ class FloatingService : Service() {
             "Shorter" to { transformLastOutput("Shorten this message while keeping the key points:") },
             "Longer" to { transformLastOutput("Expand this message with more detail:") },
             "Translate" to { transformLastOutput("Translate this to English:") },
+            "Save to Notes" to { saveLastOutputToNote() },
             "Settings" to { openSettings() },
             "Exit" to { stopSelf() },
         )

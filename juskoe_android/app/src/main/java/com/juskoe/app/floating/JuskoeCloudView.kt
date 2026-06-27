@@ -144,6 +144,9 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
         retryImageView.visibility = if (visible) VISIBLE else GONE
     }
 
+    fun showRetry() = setRetryVisible(true)
+    fun hideRetry() = setRetryVisible(false)
+
     // ── Transitions ──
 
     private fun transitionTo(state: CloudState) {
@@ -157,13 +160,12 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
             CloudState.IDLE -> {
                 logoImageView.visibility = VISIBLE
                 voiceBarsView.visibility = GONE
-                retryImageView.visibility = GONE
                 startBreathingAnimation()
             }
             CloudState.LISTENING -> {
                 logoImageView.visibility = GONE
                 voiceBarsView.visibility = VISIBLE
-                retryImageView.visibility = GONE
+                retryImageView.visibility = GONE // new interaction invalidates old retry
             }
             CloudState.PROCESSING -> {
                 logoImageView.visibility = VISIBLE
@@ -174,13 +176,11 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
             CloudState.SUCCESS -> {
                 logoImageView.visibility = VISIBLE
                 voiceBarsView.visibility = GONE
-                retryImageView.visibility = GONE
                 startSuccessGlow()
             }
             CloudState.ERROR -> {
                 logoImageView.visibility = VISIBLE
                 voiceBarsView.visibility = GONE
-                retryImageView.visibility = VISIBLE
                 startErrorShake()
             }
         }
