@@ -11,6 +11,7 @@ import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -37,6 +38,7 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
     var interactionListener: CloudInteractionListener? = null
 
     private val logoImageView: ImageView
+    private val backdropView: View
     private val voiceBarsView: VoiceBarsView
     private val retryImageView: ImageView
     private val offlineBadge: TextView
@@ -49,22 +51,26 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
         val sizePx = dpToPx(CLOUD_SIZE_DP)
         layoutParams = LayoutParams(sizePx, sizePx)
         // When added directly to WindowManager the params above are ignored, so
-        // enforce a real minimum size (correct circle + reliable touch target)
-        // and don't clip the retry icon / offline badge that sit outside bounds.
+        // enforce a real minimum size (reliable touch target) and don't clip the
+        // retry icon / offline badge that sit outside bounds.
         minimumWidth = sizePx
         minimumHeight = sizePx
         clipChildren = false
         clipToPadding = false
+        // No giant opaque white orb on the root — the small logo IS the cloud.
 
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(Color.WHITE)
+        // Subtle translucent circle sitting behind the logo so it reads as a
+        // soft "cloud" without a heavy white background.
+        backdropView = View(context).apply {
+            layoutParams = LayoutParams(dpToPx(LOGO_SIZE_DP), dpToPx(LOGO_SIZE_DP), Gravity.CENTER)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.argb(40, 255, 255, 255))
+            }
         }
-        elevation = dpToPx(6).toFloat() // shadow (NOT GradientDrawable.setShadow)
 
         logoImageView = ImageView(context).apply {
             layoutParams = LayoutParams(dpToPx(LOGO_SIZE_DP), dpToPx(LOGO_SIZE_DP), Gravity.CENTER)
-            // TODO: Replace with R.drawable.ic_cloud once design provides the vector asset.
             setImageResource(getCloudLogoRes(context))
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
@@ -90,6 +96,7 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
             visibility = GONE
         }
 
+        addView(backdropView)
         addView(logoImageView)
         addView(voiceBarsView)
         addView(retryImageView)
@@ -225,7 +232,7 @@ class JuskoeCloudView(context: Context, attrs: AttributeSet? = null) : FrameLayo
 
     companion object {
         const val CLOUD_SIZE_DP = 56
-        const val LOGO_SIZE_DP = 32
+        const val LOGO_SIZE_DP = 44
 
         /** ic_cloud if the designer has added it, else the existing logo. */
         fun getCloudLogoRes(context: Context): Int {

@@ -192,28 +192,40 @@ class FloatingService : Service() {
         Log.d("JUSKOE", "OVERLAY: cloud added to window (hidden until editable focus)")
     }
 
-    /** Reposition the cloud to top-right of the caret/field; called by accessibility. */
+    /**
+     * Reposition the cloud beside the focused field. Anchors to the field's
+     * top-right corner, sitting just above the field when there is room (else
+     * just below it), then clamps fully on-screen. Only issues an actual layout
+     * update when the position changes, to avoid jitter on every event.
+     */
     fun positionCloud(caretX: Float, caretY: Float, fieldRect: Rect) {
         val cloud = cloudView ?: return
         val size = dpToPx(JuskoeCloudView.CLOUD_SIZE_DP)
-        val margin = dpToPx(12)
+        val margin = dpToPx(8)
+        val edge = dpToPx(4)
         val screenW = resources.displayMetrics.widthPixels
         val screenH = resources.displayMetrics.heightPixels
         val statusBar = getStatusBarHeight()
 
-        var x = caretX + margin
-        var y = caretY - size - margin
-        if (y < statusBar + dpToPx(8)) y = caretY + margin            // not enough space above → below
-        if (x + size > screenW - dpToPx(8)) x = (screenW - size - dpToPx(8)).toFloat()
-        if (x < dpToPx(4)) x = dpToPx(4).toFloat()
-        if (y + size > screenH - dpToPx(8)) y = (screenH - size - dpToPx(8)).toFloat()
+        // Right edge of the field, cloud aligned just inside that edge.
+        var x = fieldRect.right.toFloat() - size
+        // Prefer just above the field; if no room above, place just below it.
+        var y = fieldRect.top.toFloat() - size - margin
+        if (y < statusBar + edge) y = fieldRect.bottom.toFloat() + margin
+
+        // Clamp on-screen.
+        if (x + size > screenW - edge) x = (screenW - size - edge).toFloat()
+        if (x < edge) x = edge.toFloat()
+        if (y + size > screenH - edge) y = (screenH - size - edge).toFloat()
         if (y < statusBar) y = statusBar.toFloat()
 
         val lp = cloud.layoutParams as? WindowManager.LayoutParams ?: return
-        lp.x = x.toInt(); lp.y = y.toInt()
+        val nx = x.toInt(); val ny = y.toInt()
+        if (lp.x == nx && lp.y == ny) return // no change → skip update (no jitter)
+        lp.x = nx; lp.y = ny
         try {
             wm.updateViewLayout(cloud, lp)
-            Log.d("JUSKOE", "☁️ Cloud at (${lp.x}, ${lp.y}) for caret ($caretX, $caretY)")
+            Log.d("JUSKOE", "OVERLAY: position x=$nx y=$ny field=${fieldRect.toShortString()}")
         } catch (_: Exception) {}
     }
 

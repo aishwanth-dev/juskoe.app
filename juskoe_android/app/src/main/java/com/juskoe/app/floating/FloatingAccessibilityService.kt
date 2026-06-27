@@ -34,52 +34,64 @@ class FloatingAccessibilityService : AccessibilityService() {
         // Android's "This service is malfunctioning" and disables the service.
         try {
             event ?: return
-            if (event.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED &&
-                event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
-                event.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED
-            ) return
-            Log.d("JUSKOE", "EVENT_RECEIVED: type=${event.eventType} pkg=${event.packageName}")
-
-            val focused = try {
-                rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            } catch (_: Exception) { null }
-
-            if (focused == null || !focused.isEditable) {
-                Log.d("JUSKOE", "FIELD_LOST: no editable focus")
-                FloatingService.instance?.hideCloud()
-                return
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_VIEW_FOCUSED,
+                AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
+                AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
+                AccessibilityEvent.TYPE_VIEW_SCROLLED,
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> onFocusAndPositionChanged(event)
+                else -> return
             }
-            Log.d("JUSKOE", "FIELD_DETECTED: editable focus pkg=${event.packageName}")
-
-            val now = System.currentTimeMillis()
-            if (now - lastCaretUpdateMs < caretThrottleMs) return
-            lastCaretUpdateMs = now
-
-            val rect = Rect()
-            focused.getBoundsInScreen(rect)
-            val estimatedTextSize = 16f * resources.displayMetrics.density
-            // Caret index: prefer the selection-change event's toIndex (accurate),
-            // then the node's selection end, then end-of-text.
-            val evtCaret = if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED) {
-                try { event.toIndex } catch (_: Exception) { -1 }
-            } else -1
-            val selEnd = try { focused.textSelectionEnd } catch (_: Exception) { -1 }
-            val charCount = try { focused.text?.length ?: 0 } catch (_: Exception) { 0 }
-            val pos = when {
-                evtCaret >= 0 -> evtCaret
-                selEnd >= 0 -> selEnd
-                else -> charCount
-            }
-            // X near the caret column, clamped inside the field.
-            val caretX: Float = (rect.left + pos * estimatedTextSize * 0.5f)
-                .coerceIn(rect.left.toFloat(), rect.right.toFloat())
-            val caretY = rect.top.toFloat()
-            Log.d("JUSKOE", "📍 Caret ~($caretX, $caretY) pkg=${event.packageName} field=${rect.toShortString()}")
-            FloatingService.instance?.positionCloud(caretX, caretY, rect)
-            FloatingService.instance?.showCloud()
         } catch (e: Exception) {
             Log.e("JUSKOE", "onAccessibilityEvent error (recovered)", e)
         }
+    }
+
+    /**
+     * Unified handler: find the currently focused editable field, validate it,
+     * and either reposition + show the cloud beside it or hide the cloud when
+     * focus is lost (e.g. window changed to a non-editable surface).
+     */
+    private fun onFocusAndPositionChanged(event: AccessibilityEvent) {
+        Log.d("JUSKOE", "EVENT_RECEIVED: type=${event.eventType} pkg=${event.packageName}")
+
+        // Always refresh the root — a stale node yields wrong bounds.
+        val root = try { rootInActiveWindow } catch (_: Exception) { null }
+        val focused = try {
+            root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        } catch (_: Exception) { null }
+
+        val rect = Rect()
+        if (focused != null) {
+            try { focused.getBoundsInScreen(rect) } catch (_: Exception) {}
+        }
+
+        // Valid target = editable, focused, with real on-screen bounds.
+        val valid = focused != null && focused.isEditable && focused.isFocused && !rect.isEmpty()
+        if (!valid) {
+            Log.d("JUSKOE", "FIELD_LOST: no valid editable focus (event=${event.eventType})")
+            FloatingService.instance?.hideCloud()
+            return
+        }
+
+        // Throttle high-frequency events (text/selection/scroll) but never the
+        // first focus event for a field.
+        val now = System.currentTimeMillis()
+        val isHighFreq = event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED
+        if (isHighFreq && now - lastCaretUpdateMs < caretThrottleMs) return
+        lastCaretUpdateMs = now
+
+        // Anchor to the field's top-right edge. Per-character caret pixel position
+        // is not reliably exposed by AccessibilityNodeInfo, so anchoring to the
+        // field edge is the robust choice (vs. the old char-count estimate that
+        // overshot horizontally on long/wrapped text).
+        val anchorX = rect.right.toFloat()
+        val anchorY = rect.top.toFloat()
+        Log.d("JUSKOE", "CARET: field=${rect.toShortString()} anchor=($anchorX,$anchorY) pkg=${event.packageName}")
+        FloatingService.instance?.positionCloud(anchorX, anchorY, rect)
+        FloatingService.instance?.showCloud()
     }
 
     override fun onInterrupt() { /* no-op */ }
