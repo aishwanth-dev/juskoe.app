@@ -113,13 +113,25 @@ class FloatingAccessibilityService : AccessibilityService() {
                 return true
             }
 
-            // Strategy 2: clipboard + ACTION_PASTE (works in many WebView/RN/Flutter fields).
+            // Strategy 2: clipboard + ACTION_PASTE, then RESTORE the user's clipboard
+            // so JUSKOE never pollutes what the user had copied.
             try {
                 val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                cm?.setPrimaryClip(android.content.ClipData.newPlainText("JUSKOE", text))
-                if (focused.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
-                    Log.d("JUSKOE", "✅ insertText via ACTION_PASTE")
-                    return true
+                if (cm != null) {
+                    val original = try { cm.primaryClip } catch (_: Exception) { null }
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("JUSKOE", text))
+                    val pasted = focused.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                    // Restore shortly after the paste is consumed.
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            if (original != null) cm.setPrimaryClip(original)
+                            else cm.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
+                        } catch (_: Exception) {}
+                    }, 500)
+                    if (pasted) {
+                        Log.d("JUSKOE", "✅ insertText via ACTION_PASTE (clipboard restored)")
+                        return true
+                    }
                 }
             } catch (e: Exception) {
                 Log.e("JUSKOE", "ACTION_PASTE strategy failed", e)
