@@ -46,7 +46,11 @@ class AudioRecorder(private val context: Context) {
 
         try {
             audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
+                // VOICE_RECOGNITION: tuned by the system for STT — better AGC,
+                // less aggressive noise gating than MIC, and known to behave
+                // better when JUSKOE is recording from a foreground service
+                // while another app is in the foreground.
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 sampleRate,
                 channelConfig,
                 audioFormat,

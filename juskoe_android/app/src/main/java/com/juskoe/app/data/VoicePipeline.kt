@@ -257,18 +257,17 @@ class VoicePipeline(private val context: Context) {
                 )
             }
 
-            // Filter hallucinations (same as Electron app)
-            val hallucinationPatterns = listOf(
-                "thank you", "thanks for watching", "please subscribe",
-                "bye", "see you", "you",
-            )
-            if (rawTranscript.lowercase().trim() in hallucinationPatterns) {
-                Log.e("JUSKOE", "ERROR_STAGE=STT ERROR_MESSAGE=Noise filtered (\"$rawTranscript\")")
-                return@withContext PipelineResult(
-                    success = false,
-                    error = "Noise filtered",
-                )
+            // Filter only obvious YouTube-style hallucinations. The old list
+            // killed legitimate short messages ("thanks", "bye", "ok") — outside
+            // the JUSKOE app these are exactly what users dictate, so we now
+            // log them as a warning but let them through to Gemini, which
+            // turns "tell appa i'll be late" into proper text regardless.
+            val noisePatterns = listOf("thanks for watching", "please subscribe", "subscribe to my channel")
+            if (rawTranscript.lowercase().trim() in noisePatterns) {
+                Log.w("JUSKOE", "STT_NOISE filtered: \"$rawTranscript\"")
+                return@withContext PipelineResult(success = false, error = "Couldn't catch that — try again")
             }
+            Log.d("JUSKOE", "STT_TRANSCRIPT len=${rawTranscript.length} preview=\"${rawTranscript.take(50)}\"")
 
             // Step 3: Pre-process transcript (dict corrections + snippet replacements)
             val transcript = preprocessTranscript(rawTranscript, snippets, dictWords)
