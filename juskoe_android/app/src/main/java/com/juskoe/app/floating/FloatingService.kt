@@ -55,11 +55,18 @@ class FloatingService : Service() {
         const val MODE_OFFLINE = "offline"
         const val MODE_NOTES = "notes"
 
-        // Auto silence-stop tuning
-        private const val SPEECH_THRESHOLD = 0.06f   // normalized peak (0..1) that counts as speech
+        // Auto silence-stop tuning. Background recording yields quieter peaks
+        // than foreground; 0.025 reliably detects normal speech without picking
+        // up ambient hum (verified by amplitude logging in real-device tests).
+        private const val SPEECH_THRESHOLD = 0.025f
         private const val SILENCE_HOLD_MS = 2000L    // stop after this much silence following speech
         private const val NO_SPEECH_TIMEOUT_MS = 6000L // stop if nothing is ever said
         private const val MAX_RECORD_MS = 15000L     // hard cap
+        // Watchdog: if the AI step takes longer than this, surface a clear error
+        // instead of leaving the cloud stuck in PROCESSING forever.
+        private const val PROCESSING_WATCHDOG_MS = 25000L
+        // After ERROR, return to IDLE so the next interaction is one tap away.
+        private const val ERROR_RESET_MS = 4000L
 
         @Volatile
         var instance: FloatingService? = null
@@ -96,6 +103,13 @@ class FloatingService : Service() {
     private var lastMode: String = MODE_AI
     private var lastOutput: String = ""
     private var lastErrorMsg: String? = null
+
+    // Watchdog that force-exits PROCESSING if the AI hangs.
+    private var watchdogJob: Job? = null
+
+    // Highest amplitude seen during the current recording — used for diagnostics
+    // when speech detection fails so we can see the actual mic level in logcat.
+    private var maxAmpThisTake = 0f
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -146,6 +160,8 @@ class FloatingService : Service() {
 
     override fun onDestroy() {
         instance = null
+        try { watchdogJob?.cancel() } catch (_: Exception) {}
+        try { silenceJob?.cancel() } catch (_: Exception) {}
         try { cloudView?.let { wm.removeView(it) } } catch (_: Exception) {}
         try { recorder?.stopRecording() } catch (_: Exception) {}
         try { pipeline?.release() } catch (_: Exception) {}
@@ -290,6 +306,7 @@ class FloatingService : Service() {
         Log.d("RETRY", "retry triggered (mode=$lastMode)")
         cloudView?.hideRetry()
         cloudView?.setState(JuskoeCloudView.CloudState.PROCESSING)
+        startProcessingWatchdog(lastMode)
         scope.launch { runAndDeliver(pcm, lastMode, replace = true) }
     }
 
@@ -306,12 +323,19 @@ class FloatingService : Service() {
         // Snapshot the focused field now — a tap on the cloud can blur it, and we
         // need a reliable insertion target when the AI result returns.
         try { FloatingAccessibilityService.instance?.captureTarget() } catch (_: Exception) {}
+        // Pre-warm the Supabase session in the background so the AI call has a
+        // fresh JWT even if JUSKOE has been backgrounded for a long time.
+        scope.launch(Dispatchers.IO) {
+            try { com.juskoe.app.data.SupabaseManager.refreshSession() } catch (_: Exception) {}
+        }
         cloudView?.setState(JuskoeCloudView.CloudState.LISTENING)
         cloudView?.setOfflineBadge(mode == MODE_OFFLINE || !isNetworkAvailable())
         // Silence-detection state: track speech + the last loud frame.
         speechStarted = false
+        maxAmpThisTake = 0f
         lastLoudMs = System.currentTimeMillis()
         rec.amplitudeListener = { amp ->
+            if (amp > maxAmpThisTake) maxAmpThisTake = amp
             if (amp >= SPEECH_THRESHOLD) {
                 speechStarted = true
                 lastLoudMs = System.currentTimeMillis()
@@ -367,19 +391,46 @@ class FloatingService : Service() {
         val pcm = try { rec.stopRecording() } catch (_: Exception) { null } ?: return
         // Diagnose background-mic problems: 16kHz/16-bit mono → 32 bytes/ms.
         val durationMs = pcm.size / 32
-        Log.d("JUSKOE", "AUDIO_CAPTURED: bytes=${pcm.size} (~${durationMs}ms) speechDetected=$speechStarted")
+        Log.d("JUSKOE", "AUDIO_CAPTURED: bytes=${pcm.size} (~${durationMs}ms) maxAmp=${"%.3f".format(maxAmpThisTake)} speechDetected=$speechStarted")
         if (pcm.size < 1600 || !speechStarted) {
             // Effectively no audio — almost always a blocked background mic.
-            Log.e("JUSKOE", "ERROR_STAGE=AUDIO ERROR_MESSAGE=no audio captured (bytes=${pcm.size}, speech=$speechStarted)")
+            Log.e("JUSKOE", "ERROR_STAGE=AUDIO ERROR_MESSAGE=no audio captured (bytes=${pcm.size}, maxAmp=${"%.3f".format(maxAmpThisTake)})")
             lastPcm = pcm; lastMode = activeMode
             cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
             cloudView?.showRetry()
-            Toast.makeText(this, "No audio captured — open JUSKOE once to grant mic, then try again", Toast.LENGTH_LONG).show()
+            scheduleErrorReset()
+            Toast.makeText(this, "No audio captured (mic level=${"%.2f".format(maxAmpThisTake)}) — try speaking louder or open JUSKOE once to refresh mic", Toast.LENGTH_LONG).show()
             return
         }
         lastPcm = pcm; lastMode = activeMode
         cloudView?.setState(JuskoeCloudView.CloudState.PROCESSING)
+        startProcessingWatchdog(activeMode)
         scope.launch { runAndDeliver(pcm, activeMode) }
+    }
+
+    /** Force-exit PROCESSING after [PROCESSING_WATCHDOG_MS] so the cloud never gets stuck. */
+    private fun startProcessingWatchdog(mode: String) {
+        watchdogJob?.cancel()
+        watchdogJob = scope.launch {
+            delay(PROCESSING_WATCHDOG_MS)
+            if (cloudView?.getCurrentState() == JuskoeCloudView.CloudState.PROCESSING) {
+                Log.e("JUSKOE", "ERROR_STAGE=WATCHDOG ERROR_MESSAGE=AI did not respond within ${PROCESSING_WATCHDOG_MS}ms mode=$mode")
+                cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
+                cloudView?.showRetry()
+                Toast.makeText(this@FloatingService, "AI took too long — check network and try again", Toast.LENGTH_LONG).show()
+                scheduleErrorReset()
+            }
+        }
+    }
+
+    /** Reset ERROR → IDLE so the user can interact again without restarting. */
+    private fun scheduleErrorReset() {
+        scope.launch {
+            delay(ERROR_RESET_MS)
+            if (cloudView?.getCurrentState() == JuskoeCloudView.CloudState.ERROR) {
+                cloudView?.setState(JuskoeCloudView.CloudState.IDLE)
+            }
+        }
     }
 
     /** Run STT/AI for [mode] off the main thread, then deliver + set cloud state. */
@@ -390,6 +441,7 @@ class FloatingService : Service() {
             Log.e("JUSKOE", "ERROR_STAGE=PIPELINE ERROR_MESSAGE=${e.message}", e)
             null
         }
+        watchdogJob?.cancel() // result arrived (or didn't) — stop the watchdog
         if (output.isNullOrBlank()) {
             val reason = lastErrorMsg ?: "No output"
             Log.e("JUSKOE", "🔴 RED_CLOUD reason=\"$reason\" mode=$mode")
@@ -397,6 +449,7 @@ class FloatingService : Service() {
             cloudView?.showRetry() // let the user retry the whole pipeline
             AnalyticsManager.trackError("cloud", "no_output_$mode")
             Toast.makeText(this, reason, Toast.LENGTH_LONG).show()
+            scheduleErrorReset()
             return
         }
         if (mode != MODE_NOTES) lastOutput = output
@@ -410,6 +463,7 @@ class FloatingService : Service() {
         } else {
             cloudView?.setState(JuskoeCloudView.CloudState.ERROR)
             cloudView?.showRetry()
+            scheduleErrorReset()
         }
     }
 

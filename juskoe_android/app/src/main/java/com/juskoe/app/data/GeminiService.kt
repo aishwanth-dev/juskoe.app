@@ -177,19 +177,26 @@ Output: Corrected text only. No explanations. No meta."""
                     header("apikey", Config.SUPABASE_ANON_KEY)
                     setBody(requestBody.toString())
                 }
-                Log.d("JUSKOE", "REQUEST_SENT: mode=$mode → ${Config.AI_PROXY_URL} (attempt ${attempt + 1}, status=${response.status.value})")
+                val bodyText = try { response.bodyAsText() } catch (_: Exception) { "" }
+                Log.d("JUSKOE", "REQUEST_SENT: mode=$mode → ${Config.AI_PROXY_URL} (attempt ${attempt + 1}, status=${response.status.value}, bodyLen=${bodyText.length})")
 
                 // Auth failure → refresh the JWT once and retry immediately.
                 if ((response.status.value == 401 || response.status.value == 403) && !refreshedOnce) {
                     refreshedOnce = true
-                    Log.w("JUSKOE", "AI proxy auth ${response.status.value} — refreshing session and retrying")
+                    Log.w("JUSKOE", "AI proxy auth ${response.status.value} — refreshing session and retrying. body=${bodyText.take(200)}")
                     val fresh = SupabaseManager.refreshSession()
                     if (fresh == null) return Result.failure<String>(AiAuthRequiredException())
                     token = fresh
                     return@repeat
                 }
 
-                val json = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                if (response.status.value >= 400) {
+                    // Surface the actual proxy error so we know if it's a deploy / key / quota issue.
+                    Log.e("JUSKOE", "AI proxy HTTP ${response.status.value}: ${bodyText.take(500)}")
+                    return Result.failure<String>(Exception("AI proxy error ${response.status.value}: ${bodyText.take(120)}"))
+                }
+
+                val json = Json.parseToJsonElement(bodyText).jsonObject
                 val success = json["success"]?.jsonPrimitive?.boolean ?: false
                 Log.d("JUSKOE", "RESPONSE_RECEIVED: success=$success")
                 if (!success) {
