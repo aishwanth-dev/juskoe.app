@@ -11,9 +11,10 @@ const footerLinks = {
     { label: "Changelog", href: "#" },
   ],
   Modes: [
-    { label: "AI Mode (F7)", href: "#features" },
-    { label: "Grammar Mode (F8)", href: "#features" },
-    { label: "Notes Mode (F9)", href: "#features" },
+    { label: "AI Mode (F7)", href: "/modes/ai" },
+    { label: "Grammar Mode (F8)", href: "/modes/grammar" },
+    { label: "Notes Mode (F9)", href: "/modes/notes" },
+    { label: "Rewrite Mode (Select+F7)", href: "/modes/rewrite" },
   ],
 
   Company: [

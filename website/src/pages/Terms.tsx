@@ -18,7 +18,7 @@ These Terms constitute a legally binding agreement between you and 16xStudios ("
 • Provides intelligent text formatting and context-aware output
 • Offers grammar correction, note-taking, and text snippet management
 • Works system-wide across all applications on Windows and macOS
-• Supports 99 languages for speech recognition`,
+• Supports multiple languages for speech recognition`,
     },
     {
       title: "3. Free and Pro Plans",
@@ -146,8 +146,7 @@ Our total liability shall not exceed the amount you paid for the Software in the
             marginBottom: 40,
           }}
         >
-          Please read these Terms of Service carefully before using the Juskoe application
-          developed by 16xStudios.
+          Please read these Terms of Service carefully before using the Juskoe application.
         </p>
 
         {sections.map((section, i) => (

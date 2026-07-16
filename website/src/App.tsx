@@ -25,6 +25,10 @@ const App = () => (
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/modes/ai" element={<AIMode />} />
+          <Route path="/modes/grammar" element={<GrammarMode />} />
+          <Route path="/modes/notes" element={<NotesMode />} />
+          <Route path="/modes/rewrite" element={<RewriteMode />} />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

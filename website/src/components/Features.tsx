@@ -1,5 +1,5 @@
 import { motion, AnimatePresence, useInView } from "framer-motion";
-import { Sparkles, Mic, FileText, BookOpen, Code, Check, Globe } from "lucide-react";
+import { Sparkles, Mic, FileText, Wand2, BookOpen, Code, Check, Globe } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import ShinyText from "./ShinyText";
 import { ParticleCard } from "./MagicBento";
@@ -41,7 +41,39 @@ const modes = [
     description: "Voice notes that save automatically. No typing, no app switching.",
     side: "left",
   },
+  {
+    hotkey: "Select+F7",
+    color: "#3B82F6",
+    bg: "rgba(59,130,246,0.07)",
+    border: "rgba(59,130,246,0.15)",
+    glowColor: "rgba(59,130,246,0.18)",
+    icon: Wand2,
+    title: "Rewrite Mode",
+    tagline: "Select text → rewrite it",
+    description: "Highlight any text, press F7, and tell juskoe how to transform it. Rewrite, summarize, translate — instantly.",
+    side: "right",
+  },
 ];
+
+// Animated selection highlight bar for Rewrite mode
+const SelectionBar = () => (
+  <div style={{ display: "flex", gap: 2, alignItems: "center", height: 16 }}>
+    {[0,1,2,3,4,5,6,7].map(i => (
+      <div
+        key={i}
+        style={{
+          width: 3,
+          height: 14,
+          borderRadius: 2,
+          background: "#3B82F6",
+          animation: `selectPulse 1.2s ease-in-out infinite`,
+          animationDelay: `${i * 0.08}s`,
+          opacity: 0.3 + (i / 8) * 0.7,
+        }}
+      />
+    ))}
+  </div>
+);
 
 // Animated overlay pill for each mode card — only animates when in view
 const ModePill = ({ mode, isInView }: { mode: typeof modes[0]; isInView: boolean }) => {
@@ -68,7 +100,8 @@ const ModePill = ({ mode, isInView }: { mode: typeof modes[0]; isInView: boolean
 
   const isAI = mode.hotkey === "F7";
   const isGrammar = mode.hotkey === "F8";
-  const modeLabel = isAI ? "AI" : isGrammar ? "G" : "N";
+  const isRewrite = mode.hotkey === "Select+F7";
+  const modeLabel = isRewrite ? "RW" : isAI ? "AI" : isGrammar ? "G" : "N";
   const barColor = phase === "processing" ? "#d97706" : mode.color;
   const pillBorder = phase === "processing" ? "#d97706" : "#2e2d2d";
   const pillBg = phase === "processing" ? "#fffbeb" : "#ffffff";
@@ -104,7 +137,10 @@ const ModePill = ({ mode, isInView }: { mode: typeof modes[0]; isInView: boolean
                   {modeLabel}
                 </span>
               )}
-              {(phase === "listening" || phase === "processing") && (
+              {isRewrite && phase === "listening" && (
+                <SelectionBar />
+              )}
+              {(isRewrite ? phase === "processing" : (phase === "listening" || phase === "processing")) && (
                 <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
                   {[0, 1, 2, 3, 4].map(i => (
                     <div
@@ -126,7 +162,8 @@ const ModePill = ({ mode, isInView }: { mode: typeof modes[0]; isInView: boolean
       </div>
       <span style={{ fontSize: 11, color: "#2e2d2d", opacity: 0.35, fontFamily: "Inter, sans-serif" }}>
         {phase === "idle" && "ready"}
-        {phase === "listening" && "listening..."}
+        {isRewrite && phase === "listening" && "selecting..."}
+        {!isRewrite && phase === "listening" && "listening..."}
         {phase === "processing" && "generating..."}
         {phase === "done" && "✓ pasted"}
       </span>
@@ -220,7 +257,7 @@ export const ThreeModes = () => {
             viewport={{ once: true }}
             className="flex justify-center mb-4"
           >
-            <span className="badge-purple">Three modes. One key each.</span>
+            <span className="badge-purple">Four modes. One key each.</span>
           </motion.div>
           <motion.h2
             initial={{ opacity: 0, y: 20 }}
@@ -373,7 +410,7 @@ export const BuiltForYou = () => {
               </div>
               <div className="space-y-2 relative z-10">
                 {[
-                  { cue: "my email", value: "aishwanth@juskoe.com" },
+                  { cue: "my email", value: "support@juskoe.in" },
                   { cue: "book a call", value: "calendly.com/juskoe/30min" },
                   { cue: "sign off", value: "Best, Aishwanth — Founder, juskoe" },
                 ].map((snippet, i) => (

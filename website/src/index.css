@@ -328,6 +328,11 @@
     animation: wavePulse 0.8s ease-in-out infinite;
   }
 
+  @keyframes selectPulse {
+    0%, 100% { transform: scaleY(0.6); opacity: 0.3; }
+    50% { transform: scaleY(1.2); opacity: 1; }
+  }
+
   /* Hotkey badge */
   .hotkey-badge {
     display: inline-flex;

@@ -120,7 +120,7 @@ To exercise these rights, contact us at support@juskoe.in.`,
             transition={{ delay: 0.2 }}
             style={{ fontSize: 14, color: "rgba(46,45,45,0.5)", marginTop: 12 }}
           >
-            Last updated: March 14, 2025
+            Last updated: July 2026
           </motion.p>
         </div>
       </section>

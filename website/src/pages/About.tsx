@@ -137,7 +137,7 @@ const About = () => {
               and intelligently formats your text based on what you're doing.
             </p>
             <p>
-              Today, Juskoe supports 99 languages, three distinct modes (AI, Grammar, Notes),
+              Today, Juskoe supports a wide range of languages, three distinct modes (AI, Grammar, Notes),
               custom dictionaries, text snippets, writing styles, and cloud sync - all in a
               lightweight desktop app that sits quietly in your system tray until you need it.
             </p>
