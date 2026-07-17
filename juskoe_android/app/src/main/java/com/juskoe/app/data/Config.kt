@@ -14,10 +14,10 @@ object Config {
     const val GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
     // Google OAuth (Web Client ID from Google Cloud Console)
-    const val GOOGLE_WEB_CLIENT_ID = "497248294732-dp8q6gkk48tm7sfknekc850b28me1vll.apps.googleusercontent.com"
+    const val GOOGLE_WEB_CLIENT_ID = "640023056571-oddu9p2sdfajt4unn816pv9q4oiesddu.apps.googleusercontent.com"
 
     // Google OAuth (Android Client ID — must match SHA-1 fingerprint)
-    const val GOOGLE_ANDROID_CLIENT_ID = "497248294732-8ieqv4qvpdo0hforjf9seljld9o0gosr.apps.googleusercontent.com"
+    const val GOOGLE_ANDROID_CLIENT_ID = "640023056571-lsrjmhti0k731ef697h9icndt4n7kbip.apps.googleusercontent.com"
 
     // API key (same obfuscation as Electron app)
     val GEMINI_API_KEY: String by lazy {

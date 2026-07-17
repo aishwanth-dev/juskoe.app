@@ -6,7 +6,6 @@
 node_modules/
 dist/
 release/
-build/
 *.log
 .env
 .env.local
@@ -56,3 +55,41 @@ juskoe_android/app/libs/*.aar
 
 # === Supabase ===
 supabase/.temp/
+
+# === Service account keys (NEVER commit) ===
+vertex-key.json
+*-service-account*.json
+*-key.json
+gemini_test_out.txt
+npm_out.txt
+o.txt
+
+# === Test scripts, notes, temp files ===
+*.ps1
+quick_test.*
+vout.txt
+build_exe.txt
+build_main.txt
+build_renderer.txt
+npm_install.txt
+
+# === Dev/planning docs (not actual code) ===
+DO_THIS_NOW.md
+"New Session Continued.md"
+START_HERE.md
+FINAL_BUILD_REPORT.md
+FINAL_PRODUCTION_REPORT.md
+PRODUCTION_READY_FINAL.md
+PRODUCTION_SETUP_CHECKLIST.md
+PRODUCTION_STATUS_REPORT.md
+README_DEPLOYMENT.md
+README_FINAL.md
+TASK_COMPLETION_PLAN.md
+SELECT_TEXT_F7_GUIDE.md
+BUILD_AND_TEST_GUIDE.md
+"juskoe_win_mac and juskoe_android and website.md"
+COMPLETE_MIGRATION.sql
+update_razorpay_credentials.sql
+
+# === CommandCode agent ===
+.commandcode/

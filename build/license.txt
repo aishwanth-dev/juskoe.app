@@ -1,0 +1,254 @@
+JUSKOE - END USER LICENSE AGREEMENT AND PRIVACY POLICY
+
+Last Updated: July 2026
+Contact: support@juskoe.in
+
+
+IMPORTANT - PLEASE READ THIS DOCUMENT CAREFULLY
+
+This document contains two parts:
+  Part 1: End User License Agreement (EULA)
+  Part 2: Privacy Policy
+
+BY INSTALLING OR USING JUSKOE, YOU ACCEPT BOTH PARTS.
+IF YOU DO NOT AGREE, DO NOT INSTALL OR USE THE SOFTWARE.
+
+
+PART 1 - END USER LICENSE AGREEMENT
+
+This Agreement is between you ("You") and Juskoe ("Company", "we", "us").
+By installing, accessing, or using the Juskoe application ("Software"),
+you agree to be bound by this Agreement.
+
+
+1. LICENSE GRANT
+
+We grant you a personal, non-exclusive, non-transferable, revocable
+license to install and use the Software on devices you own or control,
+solely for your personal or internal business productivity purposes.
+
+
+2. RESTRICTIONS
+
+You may not:
+  a) Copy, modify, distribute, sell, or sublicense the Software.
+  b) Reverse engineer, decompile, or disassemble the Software.
+  c) Remove or alter any proprietary notices or branding.
+  d) Use the Software to develop a competing product or service.
+  e) Share your account credentials with others.
+  f) Use the Software for any unlawful or abusive purpose.
+  g) Exceed the usage limits of your subscription plan.
+
+
+3. ACCOUNTS AND SUBSCRIPTIONS
+
+  a) You must create an account to use the Software.
+  b) The Software is offered on a free (limited usage) and paid (Pro) basis.
+  c) Paid subscriptions are billed monthly or annually as selected at
+     checkout. Fees are non-refundable except as required by law.
+  d) You may cancel your subscription at any time. Access to Pro features
+     continues until the end of the current billing period.
+  e) We may modify pricing with 30 days notice.
+  f) Coupon codes are single-use, non-transferable, subject to expiry
+     dates, and may be withdrawn or modified at any time.
+
+
+4. ACCEPTABLE USE
+
+You agree to use the Software responsibly. We may suspend or terminate
+your access if we detect abuse, fraud, violation of these terms, or
+conduct that harms the security or integrity of the service.
+
+
+5. INTELLECTUAL PROPERTY
+
+All rights, title, and interest in the Software, including its code,
+design, branding, and underlying technology, remain exclusively with
+Juskoe and its licensors. This Agreement does not transfer any ownership
+rights to you.
+
+
+6. UPDATES AND AVAILABILITY
+
+We may release updates or new versions of the Software. Features, plans,
+and the Software itself may be modified or discontinued with reasonable
+notice.
+
+
+7. DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+WE DO NOT WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE, UNINTERRUPTED,
+OR MEET YOUR SPECIFIC REQUIREMENTS. YOU USE THE SOFTWARE AT YOUR OWN RISK.
+
+
+8. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, JUSKOE SHALL NOT BE LIABLE FOR
+ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES,
+OR ANY LOSS OF PROFITS, REVENUE, DATA, OR BUSINESS OPPORTUNITY ARISING
+FROM YOUR USE OF OR INABILITY TO USE THE SOFTWARE, EVEN IF WE HAVE BEEN
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. OUR TOTAL LIABILITY SHALL
+NOT EXCEED THE GREATER OF Rs. 100 OR THE TOTAL AMOUNT YOU PAID TO US
+IN THE TWELVE MONTHS PRECEDING THE CLAIM.
+
+
+9. TERMINATION
+
+This Agreement is effective until terminated. Your rights terminate
+automatically if you breach any term. Upon termination, you must
+uninstall and destroy all copies of the Software. We may also suspend
+or terminate your account for misuse, fraud, or violation of these terms.
+
+
+10. GOVERNING LAW AND DISPUTES
+
+This Agreement is governed by the laws of India. Any disputes shall be
+subject to the exclusive jurisdiction of the courts of India.
+
+
+11. CONTACT
+
+For questions about this Agreement or the Software:
+  Email: support@juskoe.in
+  Website: https://juskoe.in
+
+
+PART 2 - PRIVACY POLICY
+
+Last Updated: July 2026
+
+Your privacy is important to us. This Privacy Policy describes what
+information we collect, how we use it, and your rights regarding your
+data.
+
+
+1. INFORMATION WE COLLECT
+
+  a) Account Information
+     When you create an account, we collect your name and email address
+     to set up and manage your account.
+
+  b) Usage Data
+     We collect information about how you use the Software, such as
+     features accessed and request frequency, to improve our service.
+
+  c) Subscription and Payment Data
+     Payments are processed by our payment partner. We receive only
+     confirmation of successful transactions. We never store your full
+     payment details, card numbers, or banking information.
+
+  d) User Content
+     If you enable optional cloud features, your custom words, shortcuts,
+     notes, and settings may be stored on our secure servers for cross-
+     device access.
+
+  e) Support Communications
+     If you contact us for support, we may collect your name, email, and
+     details about the issue you are experiencing.
+
+  f) Diagnostic Data
+     If the Software encounters an error, basic diagnostic information
+     (error type, app version, operating system version) may be collected
+     to help us fix issues. No personal content is included.
+
+
+2. HOW WE USE YOUR INFORMATION
+
+  - To provide, maintain, and improve the Software
+  - To process subscriptions and manage billing
+  - To enable optional cross-device sync features
+  - To respond to support requests
+  - To send important service and billing notifications
+  - To detect and prevent fraud or abuse
+
+  We do NOT sell your personal information to third parties.
+  We do NOT use your content for advertising purposes.
+  We do NOT train our models using your data or content.
+
+
+3. DATA SHARING
+
+We share your information only in these limited circumstances:
+
+  a) Service Providers
+     We engage trusted third-party providers who process data on our
+     behalf under strict confidentiality agreements.
+
+  b) Payment Processing
+     Your payment information is handled by our PCI-DSS-compliant
+     payment partner. We do not receive or store your full financial
+     details.
+
+  c) Authentication
+     If you sign in using a third-party authentication service, that
+     provider processes your login request per its own privacy policy.
+
+  d) Legal Compliance
+     We may disclose information if required by law, legal process, or
+     governmental request, or to protect the rights and safety of
+     Juskoe, our users, or others.
+
+
+4. DATA SECURITY
+
+We implement industry-standard security measures to protect your
+information, including encryption of data in transit and at rest,
+access controls, and regular security assessments. No method of
+electronic storage or transmission is 100% secure, and we cannot
+guarantee absolute security.
+
+
+5. YOUR RIGHTS AND CHOICES
+
+You have the right to:
+  - Access the personal information we hold about you
+  - Correct inaccurate or incomplete information
+  - Delete your account and associated data
+  - Export your synced data
+  - Opt out of non-essential communications
+
+To exercise these rights, contact us at support@juskoe.in. We will
+respond within 30 days.
+
+
+6. DATA RETENTION
+
+  - We retain your account information as long as your account is active.
+  - If you delete your account, we will delete your personal data within
+    30 days, unless retention is required by law.
+  - Anonymised data that cannot be linked to you may be retained
+    indefinitely for analytical purposes.
+
+
+7. CHILDREN'S PRIVACY
+
+The Software is not intended for children under 13. We do not knowingly
+collect personal information from children under 13. If we become aware
+of such data, we will delete it promptly. Please contact us at
+support@juskoe.in if you believe this has occurred.
+
+
+8. CHANGES TO THIS POLICY
+
+We may update this Privacy Policy from time to time. If we make material
+changes, we will notify you by email or through the Software at least
+14 days before the changes take effect. Your continued use after the
+effective date constitutes acceptance of the updated policy.
+
+
+9. CONTACT US
+
+If you have questions or concerns regarding this Privacy Policy:
+
+  Email: support@juskoe.in
+  Website: https://juskoe.in
+
+We aim to respond to all privacy inquiries within 5 business days.
+
+
+By installing and using Juskoe, you confirm that you have read,
+understood, and agree to be bound by both the End User License
+Agreement and the Privacy Policy set forth above.

@@ -3,6 +3,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 
+// Load .env as early as possible so OPENROUTER_KEYS / Vertex config are available
+import { loadEnv } from './envLoader';
+loadEnv(process.resourcesPath, (() => { try { return app.getAppPath(); } catch { return undefined; } })());
+
 // Pre-load ffmpeg path — handle packaged app ASAR path correctly
 let ffmpegPath: string;
 try {
@@ -20,6 +24,7 @@ try {
 // Import new modules
 import { getAppContext, AppContext } from './appContext';
 import { processVoiceInput, generateEmail, processNotesMode } from './aiProcessor';
+import { prewarmVertex, isVertexAvailable } from './vertexAI';
 import { initAuth, isAuthenticated, getCachedProfile, isPro, handleDeepLinkAuth } from './authManager';
 import {
     checkAndIncrementUsage, getUsageSummary, updateProductivityMetrics,
@@ -206,9 +211,26 @@ function initSTT(): void {
 // MAIN WINDOW
 // ============================================
 
+/**
+ * Detect whether the app was auto-launched at Windows startup.
+ * Electron passes `--openAsHidden` when the login item is configured with
+ * openAsHidden, and Windows also passes process.argv flags. We also treat
+ * an explicit `--hidden` flag as a hidden launch.
+ */
+function shouldLaunchHidden(): boolean {
+    try {
+        const args = process.argv || [];
+        if (args.includes('--hidden') || args.includes('--openAsHidden')) return true;
+        const login = app.getLoginItemSettings();
+        // wasOpenedAtLogin is true on macOS; on Windows we rely on the launch arg
+        if ((login as any).wasOpenedAtLogin) return true;
+        if ((login as any).wasOpenedAsHidden) return true;
+    } catch { /* noop */ }
+    return false;
+}
+
 function createMainWindow(): void {
     console.log('[Main] Creating window...');
-
     mainWindow = new BrowserWindow({
         width: 1100,
         height: 750,
@@ -244,6 +266,12 @@ function createMainWindow(): void {
     if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
 
     mainWindow.once('ready-to-show', () => {
+        // Background launch: when the app is auto-started on Windows boot,
+        // do NOT show the window — just run in the tray/background.
+        if (shouldLaunchHidden()) {
+            console.log('[Main] Launched at startup — staying in background (window hidden)');
+            return;
+        }
         mainWindow?.show();
         console.log('[Main] Ready');
     });
@@ -1245,7 +1273,11 @@ function setupIPC(): void {
         return app.getLoginItemSettings().openAtLogin;
     });
     ipcMain.handle('app:setAutoLaunch', (_, enabled: boolean) => {
-        app.setLoginItemSettings({ openAtLogin: enabled });
+        app.setLoginItemSettings({
+            openAtLogin: enabled,
+            openAsHidden: true,                 // macOS: start hidden
+            args: enabled ? ['--hidden'] : [],  // Windows: pass hidden flag so we launch in background
+        });
         setSetting('launchOnStartup', enabled.toString());
         return enabled;
     });
@@ -1549,6 +1581,14 @@ if (!lock) {
         // Initialize Sherpa-ONNX STT model (stays loaded in memory)
         initSTT();
 
+        // Pre-warm Vertex AI OAuth token in background (saves ~500ms on first AI call)
+        if (isVertexAvailable()) {
+            console.log('[Vertex] Primary AI provider active (Gemini 2.5 Flash Lite)');
+            prewarmVertex().catch(() => { /* non-fatal */ });
+        } else {
+            console.log('[Vertex] No key found — using OpenRouter as primary');
+        }
+
         // Initialize local database
         initLocalDatabase();
 
@@ -1562,6 +1602,22 @@ if (!lock) {
         if (mainWindow) {
             initAuth(mainWindow);
             console.log('[Auth] Initialized');
+        }
+
+        // Ensure auto-launch (if enabled) is registered to start HIDDEN in background
+        try {
+            const wantAutoLaunch = getSetting('launchOnStartup') === 'true'
+                || app.getLoginItemSettings().openAtLogin;
+            if (wantAutoLaunch) {
+                app.setLoginItemSettings({
+                    openAtLogin: true,
+                    openAsHidden: true,
+                    args: ['--hidden'],
+                });
+                console.log('[Main] Auto-launch configured to start in background');
+            }
+        } catch (e) {
+            console.warn('[Main] Auto-launch config failed:', (e as Error)?.message);
         }
 
         // Cloud sync on startup + realtime event-driven sync

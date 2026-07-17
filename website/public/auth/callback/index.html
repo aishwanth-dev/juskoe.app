@@ -69,27 +69,23 @@ border-radius:50%;background:rgba(239,68,68,0.08);margin:0 auto 16px}
     return;
   }
 
-  // Send tokens to the local Juskoe app (running on port 47831)
+  // Relay tokens to the local Juskoe app (running on port 47831)
+  // Using navigation (window.location) instead of fetch() because HTTPS→HTTP
+  // fetch is blocked by modern browsers as mixed content. Navigation is allowed.
   var relayUrl = 'http://localhost:47831/auth-complete?access_token=' + encodeURIComponent(accessToken) + '&refresh_token=' + encodeURIComponent(refreshToken);
 
-  fetch(relayUrl)
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.success) {
-        showSuccess();
-      } else {
-        showError('Sign-in Failed', d.error || 'Could not complete sign-in. Please try again.');
-      }
-    })
-    .catch(function() {
-      // Local relay failed — try deep link as fallback
-      var deepLink = 'juskoe://auth-callback?access_token=' + encodeURIComponent(accessToken) + '&refresh_token=' + encodeURIComponent(refreshToken);
-      window.location.href = deepLink;
-      setTimeout(function() {
-        showSuccess();
-        document.getElementById('sub').textContent = 'If Juskoe did not open, please return to the app manually.';
-      }, 1500);
-    });
+  // Navigate to localhost — browser shows the relay server's HTML response
+  window.location.href = relayUrl;
+
+  // Fallback: if the relay server is unreachable after 2 seconds, try deep link
+  setTimeout(function() {
+    var deepLink = 'juskoe://auth-callback?access_token=' + encodeURIComponent(accessToken) + '&refresh_token=' + encodeURIComponent(refreshToken);
+    window.location.href = deepLink;
+    setTimeout(function() {
+      showSuccess();
+      document.getElementById('sub').textContent = 'If Juskoe did not open, please return to the app manually.';
+    }, 1500);
+  }, 2000);
 
   function showSuccess() {
     document.getElementById('sp').style.display = 'none';

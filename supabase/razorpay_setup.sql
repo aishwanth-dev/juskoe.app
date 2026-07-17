@@ -4,10 +4,10 @@
 -- ============================================
 
 -- Store Razorpay API keys in app_config (service_role only - not accessible by users)
-INSERT INTO app_config (key, value) VALUES ('razorpay_key_id', 'rzp_live_RuIlq4fv5AecEA')
+INSERT INTO app_config (key, value) VALUES ('razorpay_key_id', 'rzp_live_TE6o8sifp0hU9I')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
 
-INSERT INTO app_config (key, value) VALUES ('razorpay_key_secret', 'KVSqHZooXrHN5ZzASI6I6HgH')
+INSERT INTO app_config (key, value) VALUES ('razorpay_key_secret', 'MuLOnA1GwolC8bOYavW7uEv9')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
 
 -- Razorpay Plan IDs (created via API)

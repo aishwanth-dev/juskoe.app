@@ -9,6 +9,7 @@
 import * as https from 'https';
 import { net } from 'electron';
 import { AppContext } from './appContext';
+import { callVertexGemini, isVertexAvailable } from './vertexAI';
 import {
     getSetting,
     getAllSnippets,
@@ -23,9 +24,11 @@ import {
 // OpenRouter — Ordered fallback key pool
 // Keys are tried in order; next key activates only on 401/429/402/403
 // ============================================
-// OpenRouter API keys loaded from environment
-// Set OPENROUTER_KEYS as comma-separated list in .env
-const OPENROUTER_KEYS: string[] = (process.env.OPENROUTER_KEYS || '').split(',').filter(k => k.trim().length > 0);
+// OpenRouter API keys loaded from environment (lazy — evaluated on first use
+// so it works regardless of when the .env file is loaded at startup)
+function getOpenRouterKeys(): string[] {
+    return (process.env.OPENROUTER_KEYS || '').split(',').map(k => k.trim()).filter(k => k.length > 0);
+}
 const OPENROUTER_MODEL = 'openai/gpt-oss-20b:free';
 
 // ============================================
@@ -430,6 +433,30 @@ function _nodeHttpsPost(url: string, headers: Record<string, string>, body: stri
 }
 
 async function callGemini(systemPrompt: string, userPrompt: string, options?: { temperature?: number; maxTokens?: number }): Promise<string> {
+    // ── PRIMARY: Vertex AI (Gemini 2.5 Flash Lite, $300 GCP credit) ──
+    if (isVertexAvailable()) {
+        try {
+            const startTime = Date.now();
+            const text = await callVertexGemini(systemPrompt, userPrompt, {
+                temperature: options?.temperature ?? 0.3,
+                maxTokens: options?.maxTokens ?? 500,
+                timeoutMs: 20000,
+            });
+            if (text.trim()) {
+                console.log(`[AI] Vertex primary succeeded in ${Date.now() - startTime}ms`);
+                return text.trim();
+            }
+            console.warn('[AI] Vertex returned empty — falling back to OpenRouter');
+        } catch (err: any) {
+            console.warn('[AI] Vertex failed, falling back to OpenRouter:', (err?.message || '').substring(0, 120));
+        }
+    }
+
+    // ── FALLBACK: OpenRouter (free-tier key pool) ──
+    return callOpenRouter(systemPrompt, userPrompt, options);
+}
+
+async function callOpenRouter(systemPrompt: string, userPrompt: string, options?: { temperature?: number; maxTokens?: number }): Promise<string> {
     const startTime = Date.now();
     const temperature = options?.temperature ?? 0.3;
     const max_tokens = options?.maxTokens ?? 500;
@@ -447,11 +474,15 @@ async function callGemini(systemPrompt: string, userPrompt: string, options?: { 
     const requestHeaders = (key: string): Record<string, string> => ({
         'Authorization': `Bearer ${key}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://juskoe.com',
+        'HTTP-Referer': 'https://juskoe.in',
         'X-Title': 'Juskoe',
     });
 
     // Try each key in order — move to next only on auth/rate errors
+    const OPENROUTER_KEYS = getOpenRouterKeys();
+    if (OPENROUTER_KEYS.length === 0) {
+        throw new Error('[AI] No OpenRouter keys configured and Vertex unavailable');
+    }
     for (let keyIdx = 0; keyIdx < OPENROUTER_KEYS.length; keyIdx++) {
         const key = OPENROUTER_KEYS[keyIdx];
         const isLastKey = keyIdx === OPENROUTER_KEYS.length - 1;

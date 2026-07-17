@@ -101,7 +101,7 @@ const ModePill = ({ mode, isInView }: { mode: typeof modes[0]; isInView: boolean
   const isAI = mode.hotkey === "F7";
   const isGrammar = mode.hotkey === "F8";
   const isRewrite = mode.hotkey === "Select+F7";
-  const modeLabel = isRewrite ? "RW" : isAI ? "AI" : isGrammar ? "G" : "N";
+  const modeLabel = isRewrite ? "AI" : isAI ? "AI" : isGrammar ? "G" : "N";
   const barColor = phase === "processing" ? "#d97706" : mode.color;
   const pillBorder = phase === "processing" ? "#d97706" : "#2e2d2d";
   const pillBg = phase === "processing" ? "#fffbeb" : "#ffffff";

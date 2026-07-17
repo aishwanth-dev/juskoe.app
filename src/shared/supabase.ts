@@ -5,6 +5,9 @@
 
 import { createClient, SupabaseClient, Session } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
     UserProfile,
     CloudDictionary,
@@ -14,12 +17,58 @@ import {
     Subscription,
 } from './types';
 
+// ============================================
+// File-based session storage (Node/Electron main process)
+// Supabase's default storage is browser localStorage, which does NOT exist
+// in the Electron main process — so sessions were lost on every restart.
+// This adapter persists the session token to disk so login survives
+// restarts (and the auto-launch-on-boot flow) until manual logout.
+// ============================================
+
+const SESSION_DIR = path.join(os.homedir(), '.juskoe');
+const SESSION_FILE = path.join(SESSION_DIR, 'session.json');
+
+const fileStorage = {
+    getItem(key: string): string | null {
+        try {
+            if (!fs.existsSync(SESSION_FILE)) return null;
+            const data = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+            return data[key] ?? null;
+        } catch {
+            return null;
+        }
+    },
+    setItem(key: string, value: string): void {
+        try {
+            if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR, { recursive: true });
+            let data: Record<string, string> = {};
+            if (fs.existsSync(SESSION_FILE)) {
+                try { data = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8')); } catch { data = {}; }
+            }
+            data[key] = value;
+            fs.writeFileSync(SESSION_FILE, JSON.stringify(data), 'utf8');
+        } catch (e) {
+            console.warn('[Supabase] session setItem failed:', (e as Error).message);
+        }
+    },
+    removeItem(key: string): void {
+        try {
+            if (!fs.existsSync(SESSION_FILE)) return;
+            const data = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+            delete data[key];
+            fs.writeFileSync(SESSION_FILE, JSON.stringify(data), 'utf8');
+        } catch { /* noop */ }
+    },
+};
+
 // Initialize Supabase client
 const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,  // Electron doesn't use URL-based auth
+        storage: fileStorage as any,
+        storageKey: 'juskoe-auth',
     },
 });
 

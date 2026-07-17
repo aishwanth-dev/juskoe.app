@@ -175,7 +175,7 @@ function registerIPCHandlers(): void {
         }
     });
 
-    // Email + Password: Sign Up (with name) — sends verification email
+    // Email + Password: Sign Up (with name) — sends OTP for verification
     ipcMain.handle('auth:signup', async (_, { email, password, name }: { email: string; password: string; name?: string }) => {
         try {
             console.log(`[Auth] Signing up ${email} (name: ${name || 'not provided'})`);
@@ -186,6 +186,17 @@ function registerIPCHandlers(): void {
                 cachedProfile = await getProfile();
                 cachedUsage = await getUsageSummary();
                 broadcastAuthState();
+            } else if (result.needsVerification) {
+                // Supabase sends a confirmation email link by default for password signup.
+                // We also send a numeric OTP so the user can verify directly in the app.
+                try {
+                    console.log(`[Auth] Sending OTP to ${email} for verification after signup`);
+                    await sendOTP(email);
+                    console.log(`[Auth] OTP sent to ${email}`);
+                } catch (otpError: any) {
+                    // OTP send is best-effort — user can still verify via email link
+                    console.warn('[Auth] OTP send failed (non-critical):', otpError.message);
+                }
             }
             return { success: true, needsVerification: result.needsVerification };
         } catch (error: any) {
@@ -428,8 +439,35 @@ function ensureCallbackServer(): void {
                     broadcastAuthState();
                     console.log(`[Auth] OAuth login successful (${session.user?.email})`);
 
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: true }));
+                    // Serve HTML page since browser navigated here directly (not a fetch)
+                    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Juskoe &mdash; Signed in!</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#f8f5fb;}
+.card{text-align:center;background:rgba(255,255,255,0.85);backdrop-filter:blur(16px);
+border:1px solid rgba(0,0,0,0.06);border-radius:20px;padding:48px 56px;max-width:400px;width:90%;
+box-shadow:0 4px 24px rgba(0,0,0,0.06)}
+.logo{font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:8px}
+.logo span{background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.icon{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;
+border-radius:50%;background:rgba(16,185,129,0.1);margin:0 auto 16px}
+.icon svg{width:28px;height:28px;color:#10b981}
+h2{font-size:17px;color:#059669;margin:0 0 8px}
+p{font-size:13px;color:#888;margin:0;line-height:1.5}
+</style>
+</head><body>
+<div class="card">
+<div class="logo"><span>juskoe</span></div>
+<div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+<h2>Signed in successfully!</h2>
+<p>You can close this tab and return to Juskoe.</p>
+<script>setTimeout(function(){window.close()},1500)</script>
+</div>
+</body></html>`;
+                    res.writeHead(200, { 'Content-Type': 'text/html' });
+                    res.end(html);
 
                     if (mainWindow && !mainWindow.isDestroyed()) {
                         mainWindow.show();
@@ -437,12 +475,60 @@ function ensureCallbackServer(): void {
                     }
                 } catch (e: any) {
                     console.error('[Auth] Token processing error:', e.message);
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ success: false, error: e.message }));
+                    const errHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Juskoe &mdash; Sign-in failed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8f5fb;}
+.card{text-align:center;background:rgba(255,255,255,0.85);backdrop-filter:blur(16px);
+border:1px solid rgba(0,0,0,0.06);border-radius:20px;padding:48px 56px;max-width:400px;width:90%;
+box-shadow:0 4px 24px rgba(0,0,0,0.06)}
+.logo{font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:8px}
+.logo span{background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.icon{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;
+border-radius:50%;background:rgba(239,68,68,0.08);margin:0 auto 16px}
+.icon svg{width:28px;height:28px;color:#dc2626}
+h2{font-size:17px;color:#dc2626;margin:0 0 8px}
+p{font-size:13px;color:#888;margin:0}
+</style>
+</head><body>
+<div class="card">
+<div class="logo"><span>juskoe</span></div>
+<div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1"/></svg></div>
+<h2>Sign-in failed</h2>
+<p>${e.message || 'Could not complete sign-in. Please try again from Juskoe.'}</p>
+</div>
+</body></html>`;
+                    res.writeHead(500, { 'Content-Type': 'text/html' });
+                    res.end(errHtml);
                 }
             } else {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: false, error: 'Missing tokens' }));
+                const errHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Juskoe &mdash; Sign-in failed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8f5fb;}
+.card{text-align:center;background:rgba(255,255,255,0.85);backdrop-filter:blur(16px);
+border:1px solid rgba(0,0,0,0.06);border-radius:20px;padding:48px 56px;max-width:400px;width:90%;
+box-shadow:0 4px 24px rgba(0,0,0,0.06)}
+.logo{font-size:28px;font-weight:700;color:#1a1a1a;margin-bottom:8px}
+.logo span{background:linear-gradient(135deg,#7c3aed,#a855f7);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.icon{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;
+border-radius:50%;background:rgba(239,68,68,0.08);margin:0 auto 16px}
+.icon svg{width:28px;height:28px;color:#dc2626}
+h2{font-size:17px;color:#dc2626;margin:0 0 8px}
+p{font-size:13px;color:#888;margin:0}
+</style>
+</head><body>
+<div class="card">
+<div class="logo"><span>juskoe</span></div>
+<div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1"/></svg></div>
+<h2>Sign-in failed</h2>
+<p>Missing authentication data. Please try again from Juskoe.</p>
+</div>
+</body></html>`;
+                res.writeHead(400, { 'Content-Type': 'text/html' });
+                res.end(errHtml);
             }
         } else if (reqUrl.pathname === '/ping') {
             res.writeHead(200, { 'Content-Type': 'application/json' });

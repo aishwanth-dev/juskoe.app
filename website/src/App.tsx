@@ -9,7 +9,10 @@ import About from "./pages/About";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Contact from "./pages/Contact";
-
+import AIMode from "./pages/AIMode";
+import GrammarMode from "./pages/GrammarMode";
+import NotesMode from "./pages/NotesMode";
+import RewriteMode from "./pages/RewriteMode";
 
 const queryClient = new QueryClient();
 
