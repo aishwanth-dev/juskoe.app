@@ -20,6 +20,23 @@
 
   <body>
     <div id="root"></div>
+    <script>
+    // Catch OAuth tokens on ANY page (including root if Supabase falls back to Site URL)
+    // Redirects to the dedicated callback handler so tokens get relayed to desktop app.
+    (function() {
+      var hash = location.hash.substring(1);
+      if (!hash) hash = location.search.substring(1);
+      if (hash) {
+        var params = new URLSearchParams(hash);
+        if (params.get('access_token') || params.get('refresh_token')) {
+          // Preserve the fragment while redirecting to the callback handler
+          if (location.pathname !== '/auth/callback') {
+            location.replace('/auth/callback' + location.hash);
+          }
+        }
+      }
+    })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
