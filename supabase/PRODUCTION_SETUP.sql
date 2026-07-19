@@ -53,7 +53,7 @@ CREATE POLICY "Service role full access" ON coupon_redemptions
     USING (auth.role() = 'service_role');
 
 -- 3. Verify subscriptions table has 'trialing' status
--- (validate-coupon edge function needs this for 2-month trial)
+-- (validate-coupon edge function needs this for 1-month trial, max 100 per code)
 DO $$
 BEGIN
     IF NOT EXISTS (

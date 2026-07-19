@@ -1,9 +1,10 @@
 // ============================================
 // Supabase Edge Function: validate-coupon
-// Validates hardcoded coupon codes for 2-month free trial
+// Validates hardcoded coupon codes for 1-month free trial
 // - One coupon per account (any code, one-time only)
+// - Max 100 redemptions per coupon code
 // - Monthly plan only (not annual)
-// - Cancels existing sub, creates new one with start_at = 60 days
+// - Cancels existing sub, creates new one with start_at = 30 days
 // ============================================
 
 // @ts-nocheck
@@ -18,7 +19,8 @@ const VALID_COUPONS = [
     'AIS0320', 'VIS4368', 'GOV6980',
 ];
 const COUPON_EXPIRY = new Date('2026-12-31T23:59:59+05:30'); // Extended expiry
-const FREE_MONTHS = 2;
+const FREE_MONTHS = 1;
+const MAX_REDEMPTIONS_PER_COUPON = 100;
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -81,6 +83,23 @@ serve(async (req) => {
             });
         }
 
+        // ---- 4. Check max redemptions per coupon code (100 max) ----
+        const { count: usageCount, error: countErr } = await serviceClient
+            .from('coupon_redemptions')
+            .select('*', { count: 'exact', head: true })
+            .eq('coupon_code', upperCode);
+
+        if (countErr && !countErr.message.includes('does not exist')) {
+            console.warn('[validate-coupon] Count check error:', countErr.message);
+        }
+
+        if (usageCount !== null && usageCount >= MAX_REDEMPTIONS_PER_COUPON) {
+            return json(200, {
+                success: false,
+                error: `This coupon code has reached its maximum usage limit (${MAX_REDEMPTIONS_PER_COUPON}).`
+            });
+        }
+
         // ---- 5. Get current subscription details from Razorpay ----
         const subResponse = await fetch(`https://api.razorpay.com/v1/subscriptions/${subscription_id}`, {
             headers: { 'Authorization': `Basic ${auth}` },
@@ -130,7 +149,7 @@ serve(async (req) => {
                     name: 'Juskoe',
                     amount: 35900, // ₹359
                     currency: 'INR',
-                    description: 'Juskoe Pro Monthly (2-month free trial)',
+                    description: 'Juskoe Pro Monthly (1-month free trial)',
                 },
             }),
         });
@@ -162,6 +181,7 @@ serve(async (req) => {
                     coupon_code: upperCode,
                     free_trial: 'true',
                     free_months: String(FREE_MONTHS),
+                    max_redemptions: String(MAX_REDEMPTIONS_PER_COUPON),
                 },
             }),
         });
@@ -207,7 +227,7 @@ serve(async (req) => {
             success: true,
             offer_id: null,
             new_subscription_id: newSub.id,
-            description: `2 months free! First charge of ₹359 on ${trialEnd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+            description: `1 month free! First charge of ₹359 on ${trialEnd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`,
             free_months: FREE_MONTHS,
             trial_end: trialEnd.toISOString(),
         });
