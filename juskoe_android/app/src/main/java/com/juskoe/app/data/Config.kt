@@ -1,23 +1,33 @@
 package com.juskoe.app.data
 
+import com.juskoe.app.BuildConfig
+
 /**
  * JUSKOE Configuration
- * Mirrors shared/config.ts from Electron app
+ *
+ * SECURITY: No secrets are hardcoded here. Client-safe values (Supabase URL,
+ * anon key, OAuth client IDs, Edge Function URL) are injected at build time
+ * from a gitignored `local.properties` via BuildConfig. The raw Gemini API key
+ * is NOT present in the app — AI requests are proxied through the `ai-proxy`
+ * Supabase Edge Function, which holds the key server-side.
  */
 object Config {
-    // Supabase
-    const val SUPABASE_URL = "https://rrromegwhhkyjsfxvesu.supabase.co"
-    const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJycm9tZWd3aGhreWpzZnh2ZXN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMjM1NDIsImV4cCI6MjA4Njc5OTU0Mn0.m0bJCOLoBFCMnFFhb2SaKoYandShMLxJ90etIDewErE"
+    // Supabase (client-safe: anon key is public; RLS protects data)
+    val SUPABASE_URL = BuildConfig.SUPABASE_URL
+    val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
-    // Gemini
+    // Gemini model name (the API key lives only in the Edge Function env: KJUS)
     const val GEMINI_MODEL = "gemini-2.5-flash-lite"
-    const val GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    // Supabase Edge Functions base URL (e.g. https://<ref>.supabase.co/functions/v1)
+    val EDGE_FUNCTION_URL = BuildConfig.EDGE_FUNCTION_URL
+    val AI_PROXY_URL = "$EDGE_FUNCTION_URL/ai-proxy"
 
     // Google OAuth (Web Client ID from Google Cloud Console)
-    const val GOOGLE_WEB_CLIENT_ID = "640023056571-oddu9p2sdfajt4unn816pv9q4oiesddu.apps.googleusercontent.com"
+    val GOOGLE_WEB_CLIENT_ID = BuildConfig.GOOGLE_WEB_CLIENT_ID
 
     // Google OAuth (Android Client ID — must match SHA-1 fingerprint)
-    const val GOOGLE_ANDROID_CLIENT_ID = "640023056571-lsrjmhti0k731ef697h9icndt4n7kbip.apps.googleusercontent.com"
+    val GOOGLE_ANDROID_CLIENT_ID = BuildConfig.GOOGLE_ANDROID_CLIENT_ID
 
     // API key (same obfuscation as Electron app)
     val GEMINI_API_KEY: String by lazy {

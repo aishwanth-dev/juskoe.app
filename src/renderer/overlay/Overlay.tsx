@@ -38,6 +38,16 @@ const ERROR_CREDITS = [
     "that's a wrap for today",
 ];
 
+const ERROR_BAD_RESPONSE = [
+    "the AI got meta, try again",
+    "it analyzed instead of writing",
+    "that came out wrong",
+    "got an explanation, not output",
+    "AI thought about it too much",
+    "try phrasing it differently",
+    "AI had a moment",
+];
+
 const ERROR_GENERIC = [
     "something's off, try again",
     "nope, got nothing",
@@ -85,9 +95,18 @@ const Overlay: React.FC = () => {
                 if (category === 'credits') pool = ERROR_CREDITS;
                 else if (category === 'voice') pool = ERROR_VOICE;
                 else if (category === 'network') pool = ERROR_NETWORK;
+                else if (category === 'bad_response') pool = ERROR_BAD_RESPONSE;
                 const msg = pool[Math.floor(Math.random() * pool.length)];
                 setErrorMsg(msg);
                 pendingErrorText = msg;
+            });
+
+            // Receive custom AI-generated error message (overrides the pool pick)
+            ipcRenderer.on('overlay:error-message', (_: any, message: string) => {
+                if (message && message.trim()) {
+                    setErrorMsg(message.trim());
+                    pendingErrorText = message.trim();
+                }
             });
 
             ipcRenderer.on('overlay:mode', (_: any, newMode: 'ai' | 'grammar' | 'notes') => {

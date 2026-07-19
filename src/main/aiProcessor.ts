@@ -164,137 +164,134 @@ export function processTranscriptRealtime(transcript: string): {
 // ============================================
 
 /**
- * F7 - AI Mode System Prompt (Full Juskoe AI Assistant)
+ * Build full context block (snippets + dictionary + writing style) for any prompt.
+ */
+function buildUserContext(): { snippetBlock: string; dictBlock: string } {
+    const allSnippets = getAllSnippets();
+    const snippetBlock = allSnippets.length > 0
+        ? allSnippets.map(s => `  • "${s.key}" → ${s.content.substring(0, 120)}${s.content.length > 120 ? '...' : ''}`).join('\n')
+        : '';
+
+    const dictWords = getAllDictionaryWords();
+    const dictBlock = dictWords.length > 0
+        ? dictWords.map(d => `  • "${d.word}" → ${d.corrections[0]}`).join('\n')
+        : '';
+
+    return { snippetBlock, dictBlock };
+}
+
+/**
+ * F7 - AI Mode System Prompt
  */
 function getAIModeSystemPrompt(appContext: AppContext, userStyle?: { prompt: string; language: string }): string {
     const outputLanguage = userStyle?.language || 'English';
     const customRole = userStyle?.prompt || '';
-
-    // Gather user's snippets and dictionary for AI context
-    const allSnippets = getAllSnippets();
-    const snippetContext = allSnippets.length > 0
-        ? allSnippets.map(s => `  "${s.key}" (${s.title}) → "${s.content.substring(0, 80)}${s.content.length > 80 ? '...' : ''}"`).join('\n')
-        : '';
-
-    // Get dictionary words for AI context
-    let dictionaryContext = '';
-    const dictWords = getAllDictionaryWords();
-    if (dictWords.length > 0) {
-        dictionaryContext = dictWords.map(d => `  "${d.word}" → "${d.corrections[0]}"`).join('\n');
-    }
+    const { snippetBlock, dictBlock } = buildUserContext();
 
     const isAutoLang = outputLanguage === 'Auto';
     const langRule = isAutoLang
-        ? '- IMPORTANT: Respond in the SAME language as the input. If the user speaks Tamil, respond in Tamil. If English, respond in English. Do NOT translate to a different language.'
-        : `- IMPORTANT: If the input is in a different language, TRANSLATE it on-the-fly to ${outputLanguage} while processing. The final output MUST be in ${outputLanguage}.`;
+        ? 'Respond in the SAME language as the input.'
+        : `Translate to ${outputLanguage} if input is in another language.`;
 
-    return `You are Juskoe AI — a silent, expert engine embedded in a voice-to-text productivity app. The user spoke a request via microphone. You output paste-ready text IMMEDIATELY.
+    return `You are Juskoe AI — a silent engine in a voice-to-text productivity app. The user spoke a request. Output paste-ready text.
 
-ABSOLUTE RULES — NEVER BREAK THESE:
-1. NEVER ask any question back. Not "What is this about?", not "Could you clarify?" — NEVER.
-2. NEVER say opening fillers like "Sure", "Of course", "I'd be happy to", "Great!", "Here is...".
-3. NEVER explain what you are doing or what you changed. Just do it.
-4. NEVER ask for missing info — fill in smart defaults silently.
-5. NEVER stop mid-answer. Always produce a complete, finished result.
-6. NEVER use markdown code fences (\`\`\`). For code-related asks, describe approach + key files + commands in plain prose.
-7. If a letter/email needs a name and none is given → use "Dear Sir/Madam" and sign "[Your Name]".
-8. Output ONLY the final result. The very first character must be the result itself.
+ABSOLUTE RULES:
+- NO analysis, NO fillers ("Sure", "Here is"), NO questions, NO explaining what you did.
+- Never describe the input. If the user says "write an email" → output the email. "explain X" → the explanation. "rewrite" → the rewrite.
+- Never use markdown code fences. For code, use plain prose (approach + key files + commands).
+- Never stop mid-answer. Complete the full response.
+- The output's first character IS the result itself.
+- Format appropriately: use ## headings for structured content, • bullets for lists, numbered steps for sequences, paragraphs for prose. Let the content dictate the format.
+- If the user lists items or mentions a sequence → format as bullets or numbered list.
+- For emails/letters → proper salutation + body + sign-off.
+- For explanations → clear paragraphs with structure.
+- For creative writing → flowing prose.
+- If unclear/impossible: {"trigger":true,"message":"3 to 5 word reason"}
 
-INTERPRETING "give me a prompt to X" REQUESTS:
-The user is dictating into the app, so phrases like "give me a prompt to build X" or "create a prompt for X" mean they want X DONE, not a meta-prompt for another AI.
-→ Skip the word "prompt" — DO X yourself, completely, right now.
-Example: "give me a prompt to build an ecommerce website" → produce the full ecommerce website plan/guide directly.
+SNIPPETS (user's saved shortcuts — silently USE them when they are relevant to the request. Do NOT list them in output):
+${snippetBlock || '  (none)'}
 
-OUTPUT LENGTH — MUST MATCH THE REQUEST:
-- One-line message / quick reply / yes-no answer → 1–3 sentences, naturally short.
-- Email / letter / formal note → full document, 200–600 words.
-- Plan / guide / how-to / roadmap / strategy → structured with sections + bullets, 600–1500 words.
-- Explanation / summary / breakdown → clear and complete, 400–1200 words.
-- Code/tech approach → architecture + steps + commands in prose, 500–1500 words.
-- Rewrite / improve → similar length to input, polished version.
-- For ANY substantial request, produce AT LEAST 300 words. Do NOT cut off at 40-50 words unless the request is genuinely a one-liner.
-- Hard cap: 1500 words. Stop cleanly at a paragraph boundary before the cap.
-- NEVER truncate mid-sentence.
+DICTIONARY (custom spellings/names — silently respect these):
+${dictBlock || '  (none)'}
 
-CONTEXT (use these silently — do NOT mention them in output):
-- App: ${appContext.appName} (${appContext.appType})
-- Tone: ${appContext.suggestedTone}
-- Output language: ${isAutoLang ? 'same as user input' : outputLanguage}${customRole ? `\n- Active style/role: ${customRole}` : ''}
-${snippetContext ? `- User snippets (only inline if user explicitly says "add/insert/use/paste/my <key>"):\n${snippetContext}\n` : ''}${dictionaryContext ? `- User dictionary (proper-noun spellings to preserve):\n${dictionaryContext}\n` : ''}
+OUTPUT LENGTH — AI DECIDES:
+The user didn't specify a length, so choose what fits best. These are hints — trust your judgment:
+• Quick thought / short answer → whatever it needs, even 5 words is fine
+• Email / message / letter → full document, typically 200-600 words
+• Deep explanation / plan / guide / strategy → structured, 600-1500 words
+• Code / tech approach → architecture + steps, 500-1200 words
+• Rewrite / polish / improve → match input length naturally
+• User explicitly said "short" or "brief" → keep it concise
+• User explicitly said "detailed" or "comprehensive" → go deeper
+• Hard ceiling: 1600 words. Complete your thought before it.
+• If a specific limit makes sense (e.g. email ≈ 200-600 words), use it. If not, don't force one.
+• NEVER truncate mid-sentence or mid-thought.
+
+CONTEXT (absorb silently):
+- App: ${appContext.appName} (${appContext.appType})  |  Tone: ${appContext.suggestedTone}
+- Language: ${isAutoLang ? 'same as input' : outputLanguage}${customRole ? `\n- Active writing style: ${customRole}` : ''}
 ${langRule}
 
-FORMATTING:
-- Use ## for section headings when the output has clear sections.
-- Use • or numbered steps for lists.
-- Plain readable prose. No code fences. No "Note:" or "Disclaimer:" suffixes.
-
-Output the result directly. Nothing else.`;
+Output the result. Nothing else.`;
 }
 
 /**
- * F8/F9 - Voice Dictation Cleaner
- * Strips pure speech garbage, keeps message content, fixes grammar.
+ * F8 - Grammar Mode (Voice Cleaner + Context)
  */
 function getGrammarModeSystemPrompt(): string {
-    return `You are a speech-to-text cleaner. Your job: remove vocal garbage, keep the message, fix grammar. Output ONE clean result only.
+    const { snippetBlock, dictBlock } = buildUserContext();
+    return `You are a speech-to-text cleaner with full context. Clean the spoken input, fix grammar, and output ONE clean result.
 
-REMOVE these — they are pure speech sounds, not part of any message:
-• Hesitation sounds: "um", "uh", "uhh", "umm", "uhmm", "hmm", "ahh", "err", "like um"
-• Stretching/elongated sounds: "waitttttt", "sooooo", "okaaaay" — clean to normal word
-• Restart phrases: "no wait", "no no", "sorry sorry", "let me start again", "scratch that"
-• False starts: if speaker starts a sentence then immediately corrects: "The pro— I mean the main file" → "The main file"
+CLEANING RULES:
+- Remove: "um", "uh", "uhh", "umm", "hmm", "ahh", "err", "like um" (hesitations)
+- Normalize: "waitttttt" → "wait", "sooooo" → "so", "okaaaay" → "okay" (elongated)
+- Remove restarts: "no wait", "no no", "sorry sorry", "let me start again", "scratch that"
+- Fix false starts: "The pro— I mean the main file" → "The main file"
+- Keep: idk, omg, lol, brb, btw, imo, tbh (casual is fine)
+- Keep: technical words, names, code terms, questions, instructions — preserve exactly
+- Fix: spelling, grammar, punctuation, capitalization
+- Format: lists naturally (bullets • for items, numbered for steps), paragraphs for prose
 
-KEEP these — they are part of the message, just written casually:
-• "idk" "omg" "lol" "brb" "btw" "imo" "tbh" — keep them if they fit the sentence
-• All technical words, names, code terms — preserve exactly
-• Casual phrases like "that is closing" or "I don't know what" — preserve if they make sense as part of the message
-• Questions, instructions, any actual content
+SNIPPETS (user's shortcuts — USE them silently if they naturally fit the context):
+${snippetBlock || '  (none)'}
 
-AFTER cleaning:
-1. Fix spelling, grammar, punctuation, capitalization
-2. Lists/steps → numbered (1. 2. 3.) or bullets (•)
-3. Single thought → one paragraph
+DICTIONARY (custom spellings — respect these):
+${dictBlock || '  (none)'}
 
-OUTPUT FORMAT — STRICT:
-• One result only. No "Option 1", no "Balanced output", no alternatives
-• No explanation of what you changed
-• No headers, no commentary
-• Just the cleaned text
-
-EXAMPLES:
-Input:  "Umm so uhh I wanted to say idk maybe we should meet tomorrow?"
-Output: "I wanted to say, idk, maybe we should meet tomorrow?"
-
-Input:  "That is closing immediately. I don't know what. Please save whatever you want to save as soon as possible."
-Output: "That is closing immediately. I don't know what. Please save whatever you want to save as soon as possible."
-
-Input:  "The pro— no wait the main file umm has a critical issue with the uh e-commerce site"
-Output: "The main file has a critical issue with the e-commerce site."
-
-Input:  "omg waitttttt I forgot to send the report to sooooo many people"
-Output: "OMG wait, I forgot to send the report to so many people."
-
-Return ONLY the cleaned text.`;
+OUTPUT: ONLY the cleaned text. No headers, no explanation, no alternatives.
+If unable: {"trigger":true,"message":"3 to 5 word reason"}`;
 }
 
 // ============================================
-// Notes Mode Processing (F9)
-// Clean STT noise + format + save to notes
+// Notes Mode (F9)
 // ============================================
 
-const NOTES_SYSTEM_PROMPT = `You are a voice note formatter. The user spoke a note aloud. Your job:
-1. Remove all vocal garbage: "um", "uh", "uhh", "umm", "hmm", "ahh", "err", "no wait", "sorry", false starts
-2. Fix spelling, grammar, capitalization, punctuation
-3. Format intelligently:
-   - If it's a list of items/tasks/steps → use • bullet points, one per line
-   - If it's a single idea/thought → one clean paragraph
-   - If it's a to-do/reminder → start with the action word ("Buy...", "Call...", "Fix...")
-4. Keep the speaker's exact meaning and casual words (idk, omg, etc.) if part of the note
+function getNotesSystemPrompt(): string {
+    const { snippetBlock, dictBlock } = buildUserContext();
+    return `You are a voice note formatter. Clean the spoken note and format it neatly.
 
-RULES:
-- Output ONLY the formatted note text
-- No labels, no "Note:", no headers, no commentary
-- Do NOT add content that wasn't said`;
+- Remove: um, uh, uhh, umm, hmm, ahh, err, no wait, sorry, false starts
+- Fix: spelling, grammar, capitalization, punctuation
+- Format by content type:
+  • List of items/tasks → • bullets, one per line
+  • Single idea/thought → clean paragraph
+  • To-do / reminder → start with the action verb ("Buy...", "Call...", "Fix...", "Email...")
+  • Meeting notes / recap → short paragraphs or bullets with key points
+- Keep casual words (idk, omg, etc.) — they're part of the note
+- Do NOT add content that wasn't spoken
+
+SNIPPETS (silently use if relevant):
+${snippetBlock || '  (none)'}
+
+DICTIONARY (respect these spellings):
+${dictBlock || '  (none)'}
+
+Output ONLY the formatted note. No headers, no labels, no added content.`;
+}
+
+// ============================================
+// Email Generation Prompt
+// ============================================
 
 export async function processNotesMode(transcript: string): Promise<{ success: boolean; text: string; error?: string }> {
     try {
@@ -303,7 +300,7 @@ export async function processNotesMode(transcript: string): Promise<{ success: b
 
         // Call AI to clean + format — no cap, output as much as the user spoke
         console.log(`[Notes] Input: ${cleaned.split(' ').length} words → uncapped`);
-        const formatted = await callGemini(NOTES_SYSTEM_PROMPT, cleaned, { temperature: 0.1, maxTokens: 1500 });
+        const formatted = await callGemini(getNotesSystemPrompt(), cleaned, { temperature: 0.1, maxTokens: 1500 });
         const finalText = formatted.trim() || cleaned;
 
         // Save to local notes with voice-note tag
@@ -318,6 +315,42 @@ export async function processNotesMode(transcript: string): Promise<{ success: b
         console.warn('[Notes] AI failed, saved raw transcript');
         return { success: true, text: fallback };
     }
+}
+
+// ============================================
+// Bad AI Response Detection
+// ============================================
+
+/**
+ * Patterns that indicate the AI returned a meta-analysis or explanation
+ * instead of the actual requested output. These responses should be
+ * rejected and trigger the error capsule instead of being pasted.
+ */
+const BAD_RESPONSE_PATTERNS = [
+  /^this\s+(statement|passage|text|sentence|paragraph|content|user['’]s|passage|phrase)\s+(appears|seems|looks|is|was|has|does|contains|suggests|reflects|could|might|can)/i,
+  /^the\s+(statement|passage|text|sentence|paragraph|content|user['’]s|passage|phrase)\s+(appears|seems|looks|is|was|has|does|contains|suggests|reflects|could|might|can)/i,
+  /^here\s+(is|are|['’]s)\s+(the|a|an)\s+(rewritten|corrected|polished|improved|revised|formatted|analyzed|response|version|result|output|edited|modified|text)/i,
+  /^i\s+(have|'ve|had)\s+(rewritten|corrected|polished|improved|revised|formatted|analyzed|edited|modified)/i,
+  /^(rewritten|corrected|polished|improved|revised|formatted|analyzed|edited|modified)\s+(version|text|response|output)/i,
+  /^output\s*[:.]/i,
+  /^result\s*[:.]/i,
+  /^response\s*[:.]/i,
+  /^sure[!,\s]/i,
+  /^of\s+course[!,\s]/i,
+  /^here['’]s\s+(a|the)\s+(rewritten|corrected|polished|improved|revised|formatted|version|response|output|result)/i,
+  /^i['’]d\s+(be\s+)?(happy|glad|pleased)\s+to/i,
+  /^let\s+me\s+(rewrite|correct|polish|improve|revise|format|analyze|explain|break\s+down)/i,
+  /^the\s+(rewritten|corrected|polished|improved|revised|formatted|analyzed)\s+(text|version|passage|content)/i,
+];
+
+export function isBadAIResponse(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  const match = BAD_RESPONSE_PATTERNS.some(pattern => pattern.test(trimmed));
+  if (match) {
+    console.warn(`[AI] Bad response pattern detected: "${trimmed.substring(0, 100)}"`);
+  }
+  return match;
 }
 
 // ============================================
@@ -649,34 +682,24 @@ async function processAIMode(request: AIRequest): Promise<AIResponse> {
         let userPrompt: string;
 
         if (request.selectedText && request.selectedText.trim()) {
-            userPrompt = `Apply the user's voice instruction to the selected text below.
+            userPrompt = `Apply the voice instruction to the selected text. Output ONLY the result.
 
 SELECTED TEXT:
 ${request.selectedText}
 
-VOICE INSTRUCTION: "${correctedText}"
+INSTRUCTION: "${correctedText}"
 
 RULES:
-- Output ONLY the result text. Nothing else.
-- Do NOT start with a label like "Here is the rewritten text:" or "Short, polished, and visually appealing." or any description.
-- Do NOT explain what you changed. Do NOT rate the output. Do NOT add headers.
-- The very first character of your output must be the result itself.
-- If instruction is empty or unclear, default to: rewrite the text to be cleaner and more professional.
-- If selected text is raw STT (messy speech), clean it up as part of the operation.
-- Intents: "rewrite/improve" → cleaner version | "summarize" → key points | "shorter" → condensed | "professional/formal" → formal tone | "casual" → relaxed tone | "translate to X" → translated | "explain" → clear explanation | "bullet points" → list format | "fix grammar" → grammar only
+- Output ONLY the result. First character = result itself.
+- No labels, no "Here is", no descriptions, no headers.
+- If instruction is empty/unclear → clean and polish the text.
+- If selected text is messy speech → clean it up.
+- Intents: "rewrite" → polished version | "summarize" → key points | "shorter" → condensed | "professional" → formal | "casual" → relaxed | "translate to X" → translated | "explain" → explanation | "bullet points" → list | "fix grammar" → grammar only
 
-BAD OUTPUT EXAMPLE (never do this):
-Short, polished, and visually appealing.
-Hello, how are you...
-
-GOOD OUTPUT EXAMPLE:
-Hello, how are you...`;
+BAD: "Short, polished, and visually appealing. Hello, how are you..."
+GOOD: "Hello, how are you..."`;
 
             let output = await callGemini(systemPrompt, userPrompt, { temperature: 0.25, maxTokens: 1500 });
-
-            // Strip any leading label the model adds (e.g. "Short, polished:\n" or "Here is the result:\n")
-            // A label is: a single short line (< 80 chars) ending with . or : followed by a newline
-            output = output.replace(/^[^\n]{3,80}[.:]\n+/, '').trim();
 
             return {
                 success: true,
@@ -698,6 +721,32 @@ Hello, how are you...`;
         // Call AI — hard cap 1500 tokens.
         console.log(`[AI] Mode: ai, maxTokens: 1500`);
         const output = await callGemini(systemPrompt, userPrompt, { temperature: 0.3, maxTokens: 1500 });
+
+        // Bad response detection — reject meta/analysis outputs
+        if (isBadAIResponse(output)) {
+            return {
+                success: false,
+                output: '',
+                error: 'bad_response',
+            };
+        }
+
+        // Check if AI returned a JSON trigger (unable to fulfill request)
+        const trimmed = output.trim();
+        if (trimmed.startsWith('{"trigger":') || trimmed.startsWith('{"trigger" :')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (parsed.trigger === true && parsed.message) {
+                    return {
+                        success: false,
+                        output: '',
+                        error: `bad_response:${parsed.message}`,
+                    };
+                }
+            } catch {
+                // Not valid JSON, treat as normal output
+            }
+        }
 
         return {
             success: true,
@@ -783,6 +832,32 @@ async function processGrammarMode(request: AIRequest): Promise<AIResponse> {
         console.log(`[Grammar] Input: ${textToFix.split(' ').length} words → uncapped`);
         const output = await callGemini(systemPrompt, textToFix, { temperature: 0.1, maxTokens: 1500 });
 
+        // Bad response detection — reject meta/analysis outputs
+        if (isBadAIResponse(output)) {
+            return {
+                success: false,
+                output: '',
+                error: 'bad_response',
+            };
+        }
+
+        // Check if AI returned a JSON trigger (unable to fulfill request)
+        const grammarTrimmed = output.trim();
+        if (grammarTrimmed.startsWith('{"trigger":') || grammarTrimmed.startsWith('{"trigger" :')) {
+            try {
+                const parsed = JSON.parse(grammarTrimmed);
+                if (parsed.trigger === true && parsed.message) {
+                    return {
+                        success: false,
+                        output: '',
+                        error: `bad_response:${parsed.message}`,
+                    };
+                }
+            } catch {
+                // Not valid JSON, treat as normal output
+            }
+        }
+
         return {
             success: true,
             output,
@@ -839,18 +914,13 @@ export async function generateEmail(
     try {
         const systemPrompt = `You are Juskoe's email composer.
 
-Generate a professional email based on the voice instruction.
-NEVER use placeholder brackets like[Your Name]or[Date].
-Use realistic names or leave blank if not provided.
+Generate a professional email from the voice instruction.
+NO placeholder brackets. Use realistic names or leave blank.
+Output ONLY valid JSON:
 
-OUTPUT FORMAT(JSON only):
-{
-    "to": "recipient",
-        "subject": "subject line",
-            "body": "email body"
-}
+{"to":"recipient","subject":"subject line","body":"email body"}
 
-Return ONLY valid JSON.No markdown.No explanations.`;
+No markdown. No explanations. Return ONLY the JSON.`;
 
         const userPrompt = recipientName
             ? `Email to ${recipientName}: ${instruction} `

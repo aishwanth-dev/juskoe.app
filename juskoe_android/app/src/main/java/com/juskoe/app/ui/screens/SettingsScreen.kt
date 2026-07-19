@@ -73,6 +73,7 @@ import com.juskoe.app.data.Config
 import com.juskoe.app.data.SupabaseManager
 import com.juskoe.app.data.UsageSummary
 import com.juskoe.app.data.UserProfile
+import com.juskoe.app.floating.FloatManager
 import com.juskoe.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -376,7 +377,7 @@ private fun GeneralTab(isPro: Boolean) {
                                     checked = isSelected,
                                     onCheckedChange = null,
                                     colors = SwitchDefaults.colors(
-                                        checkedTrackColor = Brown,
+                                        checkedTrackColor = Purple,
                                         uncheckedTrackColor = BorderLight,
                                     ),
                                     modifier = Modifier.size(width = 40.dp, height = 20.dp),
@@ -384,7 +385,7 @@ private fun GeneralTab(isPro: Boolean) {
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(name, style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (isSelected) Brown else TextPrimary)
+                                    color = if (isSelected) Purple else TextPrimary)
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(code.uppercase(), style = MaterialTheme.typography.labelSmall, color = TextMuted)
                             }
@@ -419,7 +420,12 @@ private fun SystemTab() {
             title = "Dark Mode",
             subtitle = "Use dark color scheme for the app",
             checked = isDarkMode,
-            onCheckedChange = { isDarkMode = it; writeBool(context, "dark_mode", it) },
+            onCheckedChange = {
+                isDarkMode = it
+                writeBool(context, "dark_mode", it)
+                // Apply immediately by recreating the activity with the new theme.
+                (context as? android.app.Activity)?.recreate()
+            },
         )
 
         HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
@@ -432,6 +438,42 @@ private fun SystemTab() {
             subtitle = "Vibrate on key press",
             checked = isHapticFeedback,
             onCheckedChange = { isHapticFeedback = it; writeBool(context, "haptic_feedback", it) },
+        )
+
+        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+
+        SectionHeader("Float JUSKOE")
+
+        var isFloat by remember {
+            mutableStateOf(FloatManager.isEnabledPref(context) && FloatManager.canDrawOverlay(context))
+        }
+        ToggleItem(
+            icon = Icons.Filled.Tune,
+            title = "Float JUSKOE",
+            subtitle = "A floating mic button that works over any app/keyboard",
+            checked = isFloat,
+            onCheckedChange = { enabled ->
+                if (enabled) {
+                    if (FloatManager.enable(context)) {
+                        isFloat = true
+                    } else {
+                        // Needs the "display over other apps" permission first.
+                        isFloat = false
+                        context.startActivity(FloatManager.overlayPermissionIntent(context))
+                    }
+                } else {
+                    FloatManager.disable(context)
+                    isFloat = false
+                }
+            },
+        )
+        SettingItem(
+            icon = Icons.Filled.Tune,
+            title = "Float text insertion",
+            subtitle = "Enable JUSKOE accessibility so results paste into any app",
+            onClick = {
+                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            },
         )
 
         HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
@@ -632,7 +674,7 @@ private fun AccountTab(
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
                         onClick = onNavigateToAuth,
-                        colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                        colors = ButtonDefaults.buttonColors(containerColor = Purple),
                         shape = RoundedCornerShape(12.dp),
                     ) {
                         Text("Sign In")
@@ -809,7 +851,7 @@ private fun ToggleItem(
             enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = White,
-                checkedTrackColor = Brown,
+                checkedTrackColor = Purple,
                 uncheckedThumbColor = White,
                 uncheckedTrackColor = Border,
                 disabledCheckedThumbColor = TextLight,

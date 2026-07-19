@@ -17,6 +17,9 @@ juskoe_android/.kotlin/
 juskoe_android/app/build/
 juskoe_android/build/
 juskoe_android/local.properties
+juskoe_android/keystore.properties
+juskoe_android/*.jks
+juskoe_android/*.keystore
 juskoe_android/*.txt
 *.apk
 *.aab
@@ -93,3 +96,18 @@ update_razorpay_credentials.sql
 
 # === CommandCode agent ===
 .commandcode/
+
+# === Google OAuth client secrets ===
+client_secret_*.apps.googleusercontent.com.json
+
+# Leaked/local Gradle home & caches inside the project (never commit)
+juskoe_android/gradle/wrapper/caches/
+juskoe_android/gradle/wrapper/daemon/
+juskoe_android/gradle/wrapper/native/
+juskoe_android/gradle/wrapper/android/
+juskoe_android/gradle/wrapper/kotlin-profile/
+juskoe_android/.gradle/
+*.lnk
+
+# Gradle wrapper distribution cache (must never be committed)
+juskoe_android/gradle/wrapper/wrapper/

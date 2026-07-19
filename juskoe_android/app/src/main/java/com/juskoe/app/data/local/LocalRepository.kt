@@ -27,6 +27,10 @@ class LocalRepository private constructor(context: Context) {
     suspend fun updateDict(entry: DictEntry) = dictDao.update(entry)
     suspend fun deleteDict(id: Long) = dictDao.deleteById(id)
     fun searchDict(query: String): Flow<List<DictEntry>> = dictDao.search(query)
+    // --- sync helpers ---
+    suspend fun insertDict(entry: DictEntry): Long = dictDao.insert(entry)
+    suspend fun findDictByCloudId(cloudId: String): DictEntry? = dictDao.findByCloudId(cloudId)
+    suspend fun findDictByWord(word: String): DictEntry? = dictDao.findByWord(word)
 
     // ============================================
     // Snippets
@@ -39,6 +43,10 @@ class LocalRepository private constructor(context: Context) {
     suspend fun updateSnippet(entry: SnippetEntry) = snippetDao.update(entry)
     suspend fun deleteSnippet(id: Long) = snippetDao.deleteById(id)
     fun searchSnippets(query: String): Flow<List<SnippetEntry>> = snippetDao.search(query)
+    // --- sync helpers ---
+    suspend fun insertSnippet(entry: SnippetEntry): Long = snippetDao.insert(entry)
+    suspend fun findSnippetByCloudId(cloudId: String): SnippetEntry? = snippetDao.findByCloudId(cloudId)
+    suspend fun findSnippetByKey(key: String): SnippetEntry? = snippetDao.findByKey(key)
 
     // ============================================
     // Notes
@@ -50,6 +58,10 @@ class LocalRepository private constructor(context: Context) {
         noteDao.insert(NoteEntry(text = text, tags = tags.joinToString(",")))
     suspend fun updateNote(entry: NoteEntry) = noteDao.update(entry)
     suspend fun deleteNote(id: Long) = noteDao.deleteById(id)
+    // --- sync helpers ---
+    suspend fun insertNote(entry: NoteEntry): Long = noteDao.insert(entry)
+    suspend fun findNoteByCloudId(cloudId: String): NoteEntry? = noteDao.findByCloudId(cloudId)
+    suspend fun findNoteByText(text: String): NoteEntry? = noteDao.findByText(text)
 
     // ============================================
     // Clipboard History

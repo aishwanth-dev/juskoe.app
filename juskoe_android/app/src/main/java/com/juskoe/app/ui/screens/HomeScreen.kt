@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -73,9 +74,8 @@ import java.util.Date
 import java.util.Locale
 
 private fun isKeyboardEnabled(context: Context): Boolean {
-    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    val inputMethods = imm.enabledInputMethodList
-    return inputMethods.any { it.packageName == context.packageName }
+    // Legacy check — used only to suppress the old keyboard card (always returns true now).
+    return true
 }
 
 private fun getGreeting(name: String): String {
@@ -107,17 +107,10 @@ fun HomeScreen(
     val userName = authState.profile?.fullName?.split(" ")?.firstOrNull() ?: ""
     val greeting = remember(userName) { getGreeting(userName) }
 
-    // History from Room DB
-    val history = remember { mutableStateListOf<GeneratedContentEntry>() }
-    LaunchedEffect(Unit) {
-        onRefreshUsage()
-        try {
-            val db = JuskoeDatabase.getInstance(context)
-            val items = db.generatedContentDao().getRecent()
-            history.clear()
-            history.addAll(items)
-        } catch (_: Exception) {}
-    }
+    // History from Room DB — observed reactively so keyboard output appears instantly
+    val db = remember { JuskoeDatabase.getInstance(context) }
+    val history by db.generatedContentDao().getRecentFlow().collectAsState(initial = emptyList())
+    LaunchedEffect(Unit) { onRefreshUsage() }
 
     // Determine plan — check cached plan immediately to avoid flash
     val cachedPlan = remember {
@@ -178,8 +171,10 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(20.dp))
         }
 
-        // Enable keyboard card
-        if (!keyboardEnabled) {
+        // Cloud activation card (replaces old keyboard card)
+        if (!com.juskoe.app.util.CloudActivationManager.hasOverlayPermission(context) ||
+            !com.juskoe.app.util.CloudActivationManager.hasAccessibilityPermission(context)
+        ) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -193,7 +188,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Keyboard,
+                            imageVector = Icons.Filled.Speed,
                             contentDescription = null,
                             tint = Brown,
                             modifier = Modifier.size(32.dp),
@@ -201,19 +196,25 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Enable JUSKOE Keyboard",
+                                text = "Activate JUSKOE Cloud",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                text = "Go to Settings → Keyboards to enable",
+                                text = "Grant overlay + accessibility so the AI cloud appears beside your cursor",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextMuted,
                             )
                         }
                         Button(
-                            onClick = { openKeyboardSettings(context) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                            onClick = {
+                                if (!com.juskoe.app.util.CloudActivationManager.hasOverlayPermission(context)) {
+                                    com.juskoe.app.util.CloudActivationManager.requestOverlayPermission(context)
+                                } else {
+                                    com.juskoe.app.util.CloudActivationManager.requestAccessibilityPermission(context)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Purple),
                             shape = RoundedCornerShape(12.dp),
                         ) {
                             Text("Enable")
@@ -222,6 +223,40 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
+        }
+
+        // Diagnostics + debug tools
+        item {
+            OutlinedButton(
+                onClick = {
+                    context.startActivity(
+                        Intent(context, com.juskoe.app.ui.CloudDiagnosticsActivity::class.java)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text("Cloud Diagnostics")
+            }
+            if (com.juskoe.app.BuildConfig.DEBUG) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val started = com.juskoe.app.util.CloudActivationManager.startCloudIfReady(context)
+                        val msg = if (started) "Cloud started — open any app and tap a text field"
+                            else "Grant overlay + accessibility first (see card above)"
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = androidx.compose.ui.graphics.Color(0xFFFF9800)
+                    ),
+                ) {
+                    Text("DEBUG: Start Cloud (Test)")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Credits Row
@@ -330,7 +365,6 @@ fun HomeScreen(
                 HistoryCard(
                     entry = item,
                     onDelete = {
-                        history.removeIf { h -> h.id == item.id }
                         scope.launch {
                             try {
                                 JuskoeDatabase.getInstance(context).generatedContentDao().deleteById(item.id)
@@ -535,7 +569,7 @@ private fun HistoryCard(
                         clipboardManager.setPrimaryClip(android.content.ClipData.newPlainText("JUSKOE", entry.output))
                         dialogCopied = true
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (dialogCopied) Success else Brown),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (dialogCopied) Success else Purple),
                     shape = RoundedCornerShape(10.dp),
                 ) {
                     Icon(

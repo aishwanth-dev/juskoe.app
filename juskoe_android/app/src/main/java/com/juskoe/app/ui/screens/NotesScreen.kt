@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -61,7 +62,6 @@ data class NoteItem(
 
 @Composable
 fun NotesScreen() {
-    val notes = remember { mutableStateListOf<NoteItem>() }
     var newNoteText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var lastRefreshMs by remember { mutableStateOf(0L) }
@@ -74,20 +74,15 @@ fun NotesScreen() {
         return prefs.getBoolean("cloud_sync", false) && SupabaseManager.isAuthenticated()
     }
 
-    // Load from Room DB on mount
-    LaunchedEffect(Unit) {
-        try {
-            val local = db.noteDao().getAllOnce()
-            notes.clear()
-            notes.addAll(local.map {
-                NoteItem(
-                    id = it.id.toString(),
-                    content = it.text,
-                    timestamp = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(it.createdAt)),
-                    cloudId = it.cloudId,
-                )
-            })
-        } catch (_: Exception) {}
+    // Observe Room directly — voice notes saved from the keyboard appear instantly
+    val dbNotes by db.noteDao().getAll().collectAsState(initial = emptyList())
+    val notes = dbNotes.map {
+        NoteItem(
+            id = it.id.toString(),
+            content = it.text,
+            timestamp = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(it.createdAt)),
+            cloudId = it.cloudId,
+        )
     }
 
     Column(
@@ -130,16 +125,6 @@ fun NotesScreen() {
                                             )
                                         }
                                     }
-                                    val local = db.noteDao().getAllOnce()
-                                    notes.clear()
-                                    notes.addAll(local.map {
-                                        NoteItem(
-                                            id = it.id.toString(),
-                                            content = it.text,
-                                            timestamp = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(it.createdAt)),
-                                            cloudId = it.cloudId,
-                                        )
-                                    })
                                 } catch (_: Exception) {}
                                 isLoading = false
                             }
@@ -184,8 +169,8 @@ fun NotesScreen() {
                         newNoteText = ""
                         scope.launch {
                             try {
-                                val newId = db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = text))
-                                notes.add(0, NoteItem(id = newId.toString(), content = text))
+                                db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = text))
+                                com.juskoe.app.data.AnalyticsManager.trackNoteCreated()
                                 if (isCloudSyncEnabled()) {
                                     try { SupabaseManager.addCloudNote(text) } catch (_: Exception) {}
                                 }
@@ -193,7 +178,7 @@ fun NotesScreen() {
                         }
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Brown),
+                colors = ButtonDefaults.buttonColors(containerColor = Purple),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.height(56.dp),
                 enabled = newNoteText.isNotBlank(),
@@ -246,7 +231,6 @@ fun NotesScreen() {
                     NoteCard(
                         note = note,
                         onDelete = {
-                            notes.removeIf { n -> n.id == it.id }
                             scope.launch {
                                 try {
                                     val localId = it.id.toLongOrNull()

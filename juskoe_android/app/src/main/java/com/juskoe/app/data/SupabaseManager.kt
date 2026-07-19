@@ -81,6 +81,26 @@ object SupabaseManager {
         return client.auth.currentUserOrNull()?.id
     }
 
+    /** Current access token (JWT) for authorizing Edge Function calls. */
+    fun currentAccessToken(): String? {
+        return client.auth.currentSessionOrNull()?.accessToken
+    }
+
+    /**
+     * Force-refresh the session using the stored refresh token and return the new
+     * access token. Used by the AI proxy path so the floating cloud keeps working
+     * even when the app has been in the background long enough for the JWT to
+     * expire. Never throws.
+     */
+    suspend fun refreshSession(): String? {
+        return try {
+            client.auth.refreshCurrentSession()
+            currentAccessToken()
+        } catch (e: Exception) {
+            currentAccessToken()
+        }
+    }
+
     fun currentUserEmail(): String? {
         return client.auth.currentUserOrNull()?.email
     }
@@ -150,14 +170,21 @@ object SupabaseManager {
         }
     }
 
-    suspend fun upsertDictWord(word: String, correction: String) {
-        val userId = currentUserId() ?: return
-        client.postgrest.from("cloud_dictionary")
-            .upsert(
-                CloudDictionary(userId = userId, word = word.lowercase(), correction = correction)
-            ) {
-                onConflict = "user_id,word"
-            }
+    suspend fun upsertDictWord(word: String, correction: String): String? {
+        val userId = currentUserId() ?: return null
+        return try {
+            client.postgrest.from("cloud_dictionary")
+                .upsert(
+                    CloudDictionary(userId = userId, word = word.lowercase(), correction = correction)
+                ) {
+                    onConflict = "user_id,word"
+                    select()
+                }
+                .decodeSingleOrNull<CloudDictionary>()
+                ?.id
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun deleteDictWord(id: String) {
@@ -179,14 +206,21 @@ object SupabaseManager {
         }
     }
 
-    suspend fun upsertSnippet(key: String, title: String, content: String, category: String = "general") {
-        val userId = currentUserId() ?: return
-        client.postgrest.from("cloud_snippets")
-            .upsert(
-                CloudSnippet(userId = userId, key = key.lowercase(), title = title, content = content, category = category)
-            ) {
-                onConflict = "user_id,key"
-            }
+    suspend fun upsertSnippet(key: String, title: String, content: String, category: String = "general"): String? {
+        val userId = currentUserId() ?: return null
+        return try {
+            client.postgrest.from("cloud_snippets")
+                .upsert(
+                    CloudSnippet(userId = userId, key = key.lowercase(), title = title, content = content, category = category)
+                ) {
+                    onConflict = "user_id,key"
+                    select()
+                }
+                .decodeSingleOrNull<CloudSnippet>()
+                ?.id
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun deleteSnippet(id: String) {
@@ -208,12 +242,20 @@ object SupabaseManager {
         }
     }
 
-    suspend fun addCloudNote(text: String, tags: List<String> = emptyList()) {
-        val userId = currentUserId() ?: return
-        client.postgrest.from("cloud_notes")
-            .insert(
-                CloudNote(userId = userId, text = text, tags = tags)
-            )
+    suspend fun addCloudNote(text: String, tags: List<String> = emptyList()): String? {
+        val userId = currentUserId() ?: return null
+        return try {
+            client.postgrest.from("cloud_notes")
+                .insert(
+                    CloudNote(userId = userId, text = text, tags = tags)
+                ) {
+                    select()
+                }
+                .decodeSingleOrNull<CloudNote>()
+                ?.id
+        } catch (e: Exception) {
+            null
+        }
     }
 
     suspend fun deleteCloudNote(id: String) {

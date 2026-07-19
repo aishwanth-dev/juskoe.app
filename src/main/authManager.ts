@@ -20,6 +20,7 @@ import {
     updateProductivityMetrics,
     checkEmailDuplicate,
 } from '../shared/supabase';
+import { switchAccount } from './localStorage';
 import { AuthState, UserProfile, UsageSummary } from '../shared/types';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../shared/config';
 
@@ -40,10 +41,12 @@ export function initAuth(win: BrowserWindow): void {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             cachedProfile = await getProfile();
             cachedUsage = await getUsageSummary();
+            switchAccount();
             broadcastAuthState();
         } else if (event === 'SIGNED_OUT') {
             cachedProfile = null;
             cachedUsage = null;
+            switchAccount();
             broadcastAuthState();
         }
     });
@@ -400,7 +403,7 @@ function registerIPCHandlers(): void {
 }
 
 // ============================================
-// OAuth via juskoe.in/auth/callback + local token relay
+// OAuth via www.juskoe.in/auth/callback + local token relay
 // ============================================
 
 import * as http from 'http';
@@ -557,8 +560,8 @@ p{font-size:13px;color:#888;margin:0}
  * Opens Google OAuth in the user's default browser.
  * Flow:
  * 1. Ensure local token relay server is running on port 47831
- * 2. Get OAuth URL with redirectTo = https://juskoe.in/auth/callback
- * 3. Open in browser → Google OAuth → Supabase redirects to juskoe.in/auth/callback#tokens
+ * 2. Get OAuth URL with redirectTo = https://www.juskoe.in/auth/callback
+ * 3. Open in browser → Google OAuth → Supabase redirects to www.juskoe.in/auth/callback#tokens
  * 4. Callback page reads tokens from hash → sends to http://localhost:47831/auth-complete
  * 5. Local server sets session → done
  */
@@ -566,7 +569,7 @@ async function openOAuthInBrowser(): Promise<void> {
     try {
         ensureCallbackServer();
 
-        const redirectTo = 'https://juskoe.in/auth/callback';
+        const redirectTo = 'https://www.juskoe.in/auth/callback';
         console.log(`[Auth] Starting Google OAuth, redirectTo: ${redirectTo}`);
 
         const oauthUrl = await getGoogleOAuthURL(redirectTo);

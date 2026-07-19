@@ -36,3 +36,23 @@ export const AUDIO_BIT_DEPTH = 16;
 // App Configuration
 export const APP_NAME = 'Juskoe';
 export const APP_VERSION = '1.0.0';
+
+// Whisper STT Supported Languages (Sherpa-ONNX Whisper Base)
+// These are the 99 languages the model can transcribe/detect
+export const WHISPER_LANGUAGES = [
+    'Auto',
+    'English', 'Afrikaans', 'Albanian', 'Amharic', 'Arabic', 'Armenian', 'Assamese',
+    'Azerbaijani', 'Bashkir', 'Basque', 'Belarusian', 'Bengali', 'Bosnian', 'Breton',
+    'Bulgarian', 'Burmese', 'Cantonese', 'Catalan', 'Chinese', 'Croatian', 'Czech',
+    'Danish', 'Dutch', 'Estonian', 'Faroese', 'Finnish', 'French', 'Galician',
+    'Georgian', 'German', 'Greek', 'Gujarati', 'Haitian Creole', 'Hausa', 'Hawaiian',
+    'Hebrew', 'Hindi', 'Hungarian', 'Icelandic', 'Indonesian', 'Italian', 'Japanese',
+    'Javanese', 'Kannada', 'Kazakh', 'Khmer', 'Korean', 'Lao', 'Latin', 'Latvian',
+    'Lingala', 'Lithuanian', 'Luxembourgish', 'Macedonian', 'Malagasy', 'Malay',
+    'Malayalam', 'Maltese', 'Maori', 'Marathi', 'Mongolian', 'Nepali', 'Norwegian',
+    'Nynorsk', 'Occitan', 'Pashto', 'Persian', 'Polish', 'Portuguese', 'Punjabi',
+    'Romanian', 'Russian', 'Sanskrit', 'Serbian', 'Shona', 'Sindhi', 'Sinhala',
+    'Slovak', 'Slovenian', 'Somali', 'Spanish', 'Sundanese', 'Swahili', 'Swedish',
+    'Tagalog', 'Tajik', 'Tamil', 'Tatar', 'Telugu', 'Thai', 'Tibetan', 'Turkish',
+    'Turkmen', 'Ukrainian', 'Urdu', 'Uzbek', 'Vietnamese', 'Welsh', 'Yiddish', 'Yoruba',
+];

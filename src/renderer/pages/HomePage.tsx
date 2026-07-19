@@ -27,6 +27,7 @@ const HomePage: React.FC<HomePageProps> = ({ recording, history, authUser, isAut
     const [aiConfetti, setAiConfetti] = useState(false);
     const [grammarConfetti, setGrammarConfetti] = useState(false);
     const [copiedToast, setCopiedToast] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const [showActionCard, setShowActionCard] = useState(true);
     const [aiUsed, setAiUsed] = useState(() => {
         try { const c = localStorage.getItem('juskoe_usage_cache'); if (c) return JSON.parse(c).dailyAI || 0; } catch { } return 0;
@@ -146,12 +147,13 @@ const HomePage: React.FC<HomePageProps> = ({ recording, history, authUser, isAut
     const userName = profile?.full_name?.split(' ')[0] || authUser?.email?.split('@')[0] || '';
     const resolvedGreeting = greeting.replace(/NAME/g, userName).replace(/, $/, '').replace(/,\s*$/, '');
 
-    const today = new Date();
-    const dateStr = today.toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-    }).toUpperCase();
+    // Format time saved into hours/minutes
+    const formatTimeSaved = (totalMinutes: number): string => {
+        if (totalMinutes < 60) return `${totalMinutes}m`;
+        const hours = Math.floor(totalMinutes / 60);
+        const mins = totalMinutes % 60;
+        return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    };
 
     const handleCopy = async (text: string, idx: number, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -171,17 +173,46 @@ const HomePage: React.FC<HomePageProps> = ({ recording, history, authUser, isAut
         }
     };
 
+    // Filter history by search query
+    const filteredHistory = React.useMemo(() => {
+        if (!searchQuery.trim()) return history;
+        const q = searchQuery.toLowerCase();
+        return history.filter(item => item.text.toLowerCase().includes(q));
+    }, [history, searchQuery]);
+
     // Bug 2 fix: render history strictly descending by createdAt so the most
     // recent F7/F8/F9 result is always at the top, regardless of how items
     // entered the list (loaded from disk on mount, or appended live via
     // recording:result). App.tsx always populates createdAt (epoch 0 for
     // legacy disk rows without a stored timestamp).
     const sortedHistory = React.useMemo(
-        () => [...history].sort(
+        () => [...filteredHistory].sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         ),
-        [history]
+        [filteredHistory]
     );
+
+    // Format date as DD-MMM-YYYY (e.g. "20-Jul-2026")
+    const formatDateHeader = (isoString: string): string => {
+        const d = new Date(isoString);
+        const day = String(d.getDate()).padStart(2, '0');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const month = months[d.getMonth()];
+        const year = d.getFullYear();
+        return `${day}-${month}-${year}`;
+    };
+
+    // Group history by date, sorted descending
+    const groupedHistory = React.useMemo(() => {
+        const groups: Record<string, typeof sortedHistory> = {};
+        for (const item of sortedHistory) {
+            const dateKey = item.createdAt ? item.createdAt.slice(0, 10) : 'unknown';
+            if (!groups[dateKey]) groups[dateKey] = [];
+            groups[dateKey].push(item);
+        }
+        // Sort dates descending (latest first)
+        return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
+    }, [sortedHistory]);
 
     return (
         <div className="home-page fade-in">
@@ -208,23 +239,34 @@ const HomePage: React.FC<HomePageProps> = ({ recording, history, authUser, isAut
                     </div>
                 </div>
                 <div className="stats-row">
-                    <span className="stat-item" title="Consecutive active days">
-                        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
-                            <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-                        </svg>
-                        {localStats.streakDays || profile?.streak_days || 0} {(localStats.streakDays || profile?.streak_days || 0) === 1 ? 'day' : 'days'}
+                    {/* Days — red heart */}
+                    <span className="stat-item stat-days" title="Consecutive active days">
+                        <span className="stat-icon stat-icon-heart">❤️</span>
+                        <span className="stat-value">{localStats.streakDays || profile?.streak_days || 0}</span>
+                        <span className="stat-label">days</span>
                     </span>
-                    <span className="stat-item" title="Total words transcribed">
-                        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
-                            <path fillRule="evenodd" d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" clipRule="evenodd" />
-                        </svg>
-                        {localStats.totalWords || profile?.total_words || 0} {(localStats.totalWords || profile?.total_words || 0) === 1 ? 'word' : 'words'}
-                    </span>
-                    <span className="stat-item" title="Average words per minute">
-                        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                    {/* Time Saved */}
+                    <span className="stat-item stat-saved" title="Typing time saved">
+                        <svg className="stat-icon-svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                         </svg>
-                        {localStats.avgWpm || profile?.avg_wpm || 0} WPM
+                        <span className="stat-value">{formatTimeSaved(localStats.totalTimeSavedMinutes || 0)}</span>
+                        <span className="stat-label">saved</span>
+                    </span>
+                    {/* WPM */}
+                    <span className="stat-item stat-wpm" title="Average words per minute">
+                        <svg className="stat-icon-svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                            <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                        </svg>
+                        <span className="stat-value">{localStats.avgWpm || profile?.avg_wpm || 0}</span>
+                        <span className="stat-label">WPM</span>
+                    </span>
+                    {/* XP */}
+                    <span className="stat-item stat-xp" title="Experience & level">
+                        <span className="stat-icon stat-icon-xp">⚡</span>
+                        <span className="stat-value">{localStats.level || 'Newbie'}</span>
+                        <span className="stat-label">{localStats.levelInfo?.progressPercent || 0}%</span>
                     </span>
                 </div>
             </div>
@@ -277,44 +319,75 @@ const HomePage: React.FC<HomePageProps> = ({ recording, history, authUser, isAut
                 </div>
             )}
 
+            {/* Search Bar */}
+            <div className="search-bar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" className="search-icon">
+                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                    type="text"
+                    className="search-input"
+                    placeholder="Search command history..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                    <button className="search-clear" onClick={() => setSearchQuery('')}>
+                        <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                )}
+            </div>
+
             {/* History Section */}
             <div className="history-section">
-                <h3 className="history-date">{dateStr}</h3>
-                {history.length === 0 ? (
-                    <p className="no-history">No commands yet. Press F7 or F8 to start.</p>
+                {groupedHistory.length === 0 ? (
+                    <p className="no-history">
+                        {searchQuery ? 'No commands match your search.' : 'No commands yet. Press F7, F8 or F9 to start.'}
+                    </p>
                 ) : (
-                    <div className="history-list">
-                        {sortedHistory.map((item, idx) => (
-                            <div
-                                key={idx}
-                                className="history-row"
-                                onMouseEnter={() => setHoveredIndex(idx)}
-                                onMouseLeave={() => setHoveredIndex(null)}
-                                onClick={() => setSelectedMessage(item)}
-                            >
-                                <span className="history-time">{item.time}</span>
-                                <span className="history-text">{truncateText(item.text)}</span>
-                                {hoveredIndex === idx && (
-                                    <button
-                                        className="copy-btn"
-                                        onClick={(e) => handleCopy(item.text, idx, e)}
-                                        title="Copy to clipboard"
-                                    >
-                                        {copiedIndex === idx ? (
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" className="tick-animate">
-                                                <polyline points="20 6 9 17 4 12" />
-                                            </svg>
-                                        ) : (
-                                            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-                                                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
-                                                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
-                                            </svg>
-                                        )}
-                                    </button>
-                                )}
+                    groupedHistory.map(([dateKey, items]) => (
+                        <div key={dateKey} className="history-group">
+                            <h3 className="history-date">{formatDateHeader(dateKey)}</h3>
+                            <div className="history-list">
+                                {items.map((item, idx) => {
+                                    // Use a composite key so multiple dates don't share hover/copy state
+                                    const globalIdx = dateKey + '-' + idx;
+                                    return (
+                                        <div
+                                            key={globalIdx}
+                                            className="history-row"
+                                            onMouseEnter={() => setHoveredIndex(globalIdx as any)}
+                                            onMouseLeave={() => setHoveredIndex(null)}
+                                            onClick={() => setSelectedMessage(item)}
+                                        >
+                                            <span className="history-time">{item.time}</span>
+                                            <span className="history-text">{truncateText(item.text)}</span>
+                                            {hoveredIndex === globalIdx && (
+                                                <button
+                                                    className="copy-btn"
+                                                    onClick={(e) => handleCopy(item.text, idx, e)}
+                                                    title="Copy to clipboard"
+                                                >
+                                                    {copiedIndex === idx ? (
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16" className="tick-animate">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                    ) : (
+                                                        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+                                                            <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                                                            <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    ))
                 )}
             </div>
 

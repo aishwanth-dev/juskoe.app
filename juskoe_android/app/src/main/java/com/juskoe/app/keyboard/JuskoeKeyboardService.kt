@@ -28,6 +28,7 @@ import com.juskoe.app.data.VoicePipeline
 import com.juskoe.app.ui.theme.JuskoeKeyboardTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -74,6 +75,17 @@ class JuskoeKeyboardService :
     // Progressive backspace tracking
     private var backspaceHoldStartMs = 0L
     private var lastBackspaceMs = 0L
+
+    // --- Settings (read from the SAME prefs the Settings screen writes) ---
+    private val settingsPrefs by lazy { getSharedPreferences("juskoe_settings", Context.MODE_PRIVATE) }
+    private fun pref(key: String, default: Boolean): Boolean =
+        try { settingsPrefs.getBoolean(key, default) } catch (_: Exception) { default }
+    private val vibrator: android.os.Vibrator? by lazy {
+        try { getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator } catch (_: Exception) { null }
+    }
+
+    // Debounced suggestion computation (off the per-keystroke hot path)
+    private var suggestionJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -318,6 +330,10 @@ class JuskoeKeyboardService :
                 }
             }
             lastSpaceMs = now
+            // Autocorrect (default ON) — complete the typed word before the space
+            if (pref("autocorrect", true) && ic != null) {
+                maybeAutocorrect(ic)
+            }
             ic?.commitText(" ", 1)
             keyboardState.value = keyboardState.value.copy(currentWord = "", suggestions = emptyList())
             checkAutoCapitalize()
@@ -455,6 +471,34 @@ class JuskoeKeyboardService :
 
             serviceScope.launch {
                 try {
+                    // Notes mode: transcribe-only → save to Notes table (no AI, no credits).
+                    if (modeStr == "notes") {
+                        val noteText = pipeline.transcribeForNote(pcmData)
+                        if (noteText.isBlank()) {
+                            keyboardState.value = keyboardState.value.copy(
+                                voiceState = VoiceState.IDLE,
+                                activeMode = VoiceMode.NONE,
+                                errorMessage = "No speech detected",
+                            )
+                            return@launch
+                        }
+                        try {
+                            val db = com.juskoe.app.data.local.JuskoeDatabase.getInstance(this@JuskoeKeyboardService)
+                            db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = noteText))
+                            com.juskoe.app.data.AnalyticsManager.trackNoteCreated()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to save note", e)
+                        }
+                        currentInputConnection?.commitText(noteText, 1)
+                        copyToClipboard(noteText)
+                        keyboardState.value = keyboardState.value.copy(
+                            voiceState = VoiceState.IDLE,
+                            activeMode = VoiceMode.NONE,
+                            errorMessage = "Saved to Notes",
+                        )
+                        return@launch
+                    }
+
                     // Credit gate — check if free user is at limit
                     if (!canUseCredit(modeStr)) {
                         keyboardState.value = keyboardState.value.copy(
@@ -539,6 +583,9 @@ class JuskoeKeyboardService :
     // ============================================
 
     private fun updateSuggestions() {
+        // Debounce: cancel any pending computation and recompute shortly after the
+        // last keystroke. Keeps the typing path cheap and limits recompositions.
+        suggestionJob?.cancel()
         try {
             val ic = currentInputConnection ?: return
             val before = ic.getTextBeforeCursor(30, 0)?.toString() ?: return
@@ -547,11 +594,34 @@ class JuskoeKeyboardService :
                 keyboardState.value = keyboardState.value.copy(currentWord = lastWord, suggestions = emptyList())
                 return
             }
-            val matches = COMMON_WORDS.filter { it.startsWith(lastWord) && it != lastWord }.take(3)
-            keyboardState.value = keyboardState.value.copy(currentWord = lastWord, suggestions = matches)
+            suggestionJob = serviceScope.launch {
+                delay(110)
+                val matches = WordSuggestions.suggest(lastWord)
+                keyboardState.value = keyboardState.value.copy(currentWord = lastWord, suggestions = matches)
+            }
         } catch (_: Exception) {
             keyboardState.value = keyboardState.value.copy(suggestions = emptyList())
         }
+    }
+
+    /**
+     * Conservative autocorrect: when enabled, complete the just-typed word to the
+     * top suggestion on space. Never touches known words, capitalized words, or
+     * distant matches — so it completes ("thi"→"this") but won't mangle valid input.
+     */
+    private fun maybeAutocorrect(ic: android.view.inputmethod.InputConnection) {
+        try {
+            val before = ic.getTextBeforeCursor(30, 0)?.toString() ?: return
+            val word = before.split(Regex("[\\s,.\\n]")).lastOrNull() ?: return
+            if (word.length < 3) return
+            if (word.any { it.isUpperCase() }) return
+            val lower = word.lowercase()
+            if (lower in WordSuggestions.knownWords) return
+            val suggestion = WordSuggestions.suggest(lower).firstOrNull() ?: return
+            if (suggestion == lower || suggestion.length - lower.length > 3) return
+            ic.deleteSurroundingText(word.length, 0)
+            ic.commitText(suggestion, 1)
+        } catch (_: Exception) {}
     }
 
     private fun applySuggestion(word: String) {
@@ -587,12 +657,28 @@ class JuskoeKeyboardService :
         } catch (_: Exception) {}
     }
 
-    /** Play system key click sound */
+    /** Play system key click sound + haptic, honoring the user's settings. */
     private fun playKeyClick() {
-        try {
-            val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            am?.playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD, -1f)
-        } catch (_: Exception) {}
+        // Key sound — default OFF (matches Settings default)
+        if (pref("key_sound", false)) {
+            try {
+                val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                am?.playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD, -1f)
+            } catch (_: Exception) {}
+        }
+        // Haptic feedback — default ON
+        if (pref("haptic_feedback", true)) {
+            try {
+                val v = vibrator
+                if (v != null && v.hasVibrator()) {
+                    v.vibrate(
+                        android.os.VibrationEffect.createOneShot(
+                            12, android.os.VibrationEffect.DEFAULT_AMPLITUDE,
+                        )
+                    )
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     // ============================================
@@ -617,6 +703,7 @@ class JuskoeKeyboardService :
 
     /** Auto-capitalize at sentence start, after newline, or at text start */
     private fun checkAutoCapitalize() {
+        if (!pref("auto_capitalize", true)) return
         if (keyboardState.value.isCapsLock) return
         try {
             val ic = currentInputConnection ?: return
@@ -692,6 +779,34 @@ class JuskoeKeyboardService :
 
                 serviceScope.launch {
                     try {
+                        // Notes mode: transcribe-only → save to Notes (no AI, no credits).
+                        if (modeStr == "notes") {
+                            val noteText = pipeline.transcribeForNote(pcmData)
+                            if (noteText.isBlank()) {
+                                keyboardState.value = keyboardState.value.copy(
+                                    voiceState = VoiceState.IDLE,
+                                    activeMode = VoiceMode.NONE,
+                                    errorMessage = "No speech detected",
+                                )
+                                return@launch
+                            }
+                            try {
+                                val db = com.juskoe.app.data.local.JuskoeDatabase.getInstance(this@JuskoeKeyboardService)
+                                db.noteDao().insert(com.juskoe.app.data.local.NoteEntry(text = noteText))
+                                com.juskoe.app.data.AnalyticsManager.trackNoteCreated()
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to save note", e)
+                            }
+                            currentInputConnection?.commitText(noteText, 1)
+                            copyToClipboard(noteText)
+                            keyboardState.value = keyboardState.value.copy(
+                                voiceState = VoiceState.IDLE,
+                                activeMode = VoiceMode.NONE,
+                                errorMessage = "Saved to Notes",
+                            )
+                            return@launch
+                        }
+
                         // Credit gate
                         if (!canUseCredit(modeStr)) {
                             keyboardState.value = keyboardState.value.copy(
@@ -923,6 +1038,12 @@ class JuskoeKeyboardService :
             }
             val current = db.usageCacheDao().get(key)?.value ?: 0
             db.usageCacheDao().set(com.juskoe.app.data.local.UsageCache(key = key, value = current + 1))
+
+            // Analytics: track feature completion (latency not available here; tracked as 0)
+            when (mode) {
+                "ai" -> com.juskoe.app.data.AnalyticsManager.trackAiComplete(0, 0, 0)
+                "grammar" -> com.juskoe.app.data.AnalyticsManager.trackGrammarComplete(0, 0, 0)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "incrementLocalUsage failed (non-fatal)", e)
         }
@@ -1052,3 +1173,26 @@ private val COMMON_WORDS = listOf(
     "conversation","relationship","celebration","appreciate","introduce","apology",
     "apologize","forgive","promise","guarantee","confirm","cancel","postpone","reschedule",
 )
+
+// ============================================
+// Autocomplete index — O(bucket) prefix lookup instead of scanning ~800 words
+// on every keystroke. Built once, lazily.
+// ============================================
+private object WordSuggestions {
+    /** Words grouped by first character for fast prefix filtering. */
+    private val byFirstChar: Map<Char, List<String>> by lazy {
+        COMMON_WORDS.filter { it.isNotEmpty() }.groupBy { it[0] }
+    }
+
+    /** O(1) membership set used by autocorrect to skip already-valid words. */
+    val knownWords: Set<String> by lazy { COMMON_WORDS.toHashSet() }
+
+    fun suggest(prefix: String): List<String> {
+        if (prefix.isEmpty()) return emptyList()
+        val bucket = byFirstChar[prefix[0]] ?: return emptyList()
+        return bucket.asSequence()
+            .filter { it.startsWith(prefix) && it != prefix }
+            .take(3)
+            .toList()
+    }
+}

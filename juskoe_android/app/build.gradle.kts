@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +8,28 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+// ============================================
+// Secret/config loading — values come from a GITIGNORED local.properties
+// (or environment variables in CI). NOTHING secret is hardcoded in source.
+// Only client-safe values belong here: Supabase URL, anon key, OAuth client
+// IDs, and the Edge Function base URL. The raw Gemini key NEVER ships in the
+// APK — AI calls go through the `ai-proxy` Supabase Edge Function.
+// ============================================
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+fun cfg(key: String, default: String = ""): String =
+    localProps.getProperty(key) ?: System.getenv(key) ?: default
+
+// Release signing — keystore details come from a GITIGNORED keystore.properties.
+// If absent (e.g. CI without signing secrets), the release block stays unsigned.
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+val hasKeystore = keystoreProps.getProperty("storeFile") != null
 
 repositories {
     flatDir {
@@ -26,11 +51,30 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
         }
+
+        // --- Injected config (from gitignored local.properties / CI env) ---
+        buildConfigField("String", "SUPABASE_URL", "\"${cfg("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${cfg("SUPABASE_ANON_KEY")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${cfg("GOOGLE_WEB_CLIENT_ID")}\"")
+        buildConfigField("String", "GOOGLE_ANDROID_CLIENT_ID", "\"${cfg("GOOGLE_ANDROID_CLIENT_ID")}\"")
+        // Base URL for Supabase Edge Functions, e.g. https://<ref>.supabase.co/functions/v1
+        buildConfigField("String", "EDGE_FUNCTION_URL", "\"${cfg("EDGE_FUNCTION_URL")}\"")
     }
 
     // Don't compress model files in assets
     androidResources {
         noCompress += listOf("onnx", "txt", "bin")
+    }
+
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -41,6 +85,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -55,6 +102,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -85,6 +133,12 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+
+    // WorkManager (background cloud sync for Pro users)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // Security (EncryptedSharedPreferences for session/sensitive flags)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Supabase BOM + modules (v3 uses auth-kt, not gotrue-kt)
     val supabaseBom = platform("io.github.jan-tennert.supabase:bom:3.1.3")

@@ -100,10 +100,12 @@
     border: none;
     outline: none;
     background: transparent;
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 1.5;
     color: var(--color-text);
     width: 100%;
     font-family: var(--font-sans);
+    caret-color: var(--color-text);
 }
 
 .search-input-inline::placeholder {

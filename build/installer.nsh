@@ -1,5 +1,5 @@
 ; Juskoe Custom NSIS Installer Script
-; Adds branding polish to the wizard flow
+; Branding polish for the installer wizard
 
 BrandingText "Juskoe"
 
@@ -11,9 +11,9 @@ Click Next to continue."
 !macroend
 
 !macro customFinishPage
-  !define MUI_FINISHPAGE_TITLE "Juskoe Installation Complete"
-  !define MUI_FINISHPAGE_RUN_TEXT "Launch Juskoe"
-  !define MUI_FINISHPAGE_RUN
+  !define MUI_FINISHPAGE_TITLE "Installation Complete"
+  !define MUI_FINISHPAGE_TEXT "Juskoe has been installed successfully."
+  ; runAfterFinish in package.json adds the MUI_FINISHPAGE_RUN checkbox
 !macroend
 
 !macro customUnInstallPage

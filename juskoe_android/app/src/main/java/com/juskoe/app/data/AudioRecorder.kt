@@ -25,6 +25,9 @@ class AudioRecorder(private val context: Context) {
     private var isRecording = false
     private var pcmBuffer = ByteArrayOutputStream()
 
+    /** Optional listener fed a normalized 0..1 amplitude per audio frame. */
+    var amplitudeListener: ((Float) -> Unit)? = null
+
     private val sampleRate = Config.AUDIO_SAMPLE_RATE
     private val channelConfig = AudioFormat.CHANNEL_IN_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
@@ -43,7 +46,11 @@ class AudioRecorder(private val context: Context) {
 
         try {
             audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
+                // VOICE_RECOGNITION: tuned by the system for STT — better AGC,
+                // less aggressive noise gating than MIC, and known to behave
+                // better when JUSKOE is recording from a foreground service
+                // while another app is in the foreground.
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 sampleRate,
                 channelConfig,
                 audioFormat,
@@ -68,6 +75,18 @@ class AudioRecorder(private val context: Context) {
                     if (bytesRead > 0) {
                         synchronized(pcmBuffer) {
                             pcmBuffer.write(buffer, 0, bytesRead)
+                        }
+                        // Emit a normalized amplitude (peak of this frame) for the UI.
+                        amplitudeListener?.let { listener ->
+                            var peak = 0
+                            var i = 0
+                            while (i + 1 < bytesRead) {
+                                val sample = (buffer[i].toInt() and 0xff) or (buffer[i + 1].toInt() shl 8)
+                                val abs = kotlin.math.abs(sample)
+                                if (abs > peak) peak = abs
+                                i += 2
+                            }
+                            listener(peak / 32768f)
                         }
                     }
                 }

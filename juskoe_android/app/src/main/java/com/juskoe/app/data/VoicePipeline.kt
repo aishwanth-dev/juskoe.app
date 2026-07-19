@@ -250,26 +250,28 @@ class VoicePipeline(private val context: Context) {
             Log.d(TAG, "Pipeline STT took ${sttMs}ms")
 
             if (rawTranscript.isBlank()) {
+                Log.e("JUSKOE", "ERROR_STAGE=STT ERROR_MESSAGE=No speech detected (blank transcript, sttMs=$sttMs)")
                 return@withContext PipelineResult(
                     success = false,
                     error = "No speech detected",
                 )
             }
 
-            // Filter hallucinations (same as Electron app)
-            val hallucinationPatterns = listOf(
-                "thank you", "thanks for watching", "please subscribe",
-                "bye", "see you", "you",
-            )
-            if (rawTranscript.lowercase().trim() in hallucinationPatterns) {
-                return@withContext PipelineResult(
-                    success = false,
-                    error = "Noise filtered",
-                )
+            // Filter only obvious YouTube-style hallucinations. The old list
+            // killed legitimate short messages ("thanks", "bye", "ok") — outside
+            // the JUSKOE app these are exactly what users dictate, so we now
+            // log them as a warning but let them through to Gemini, which
+            // turns "tell appa i'll be late" into proper text regardless.
+            val noisePatterns = listOf("thanks for watching", "please subscribe", "subscribe to my channel")
+            if (rawTranscript.lowercase().trim() in noisePatterns) {
+                Log.w("JUSKOE", "STT_NOISE filtered: \"$rawTranscript\"")
+                return@withContext PipelineResult(success = false, error = "Couldn't catch that — try again")
             }
+            Log.d("JUSKOE", "STT_TRANSCRIPT len=${rawTranscript.length} preview=\"${rawTranscript.take(50)}\"")
 
             // Step 3: Pre-process transcript (dict corrections + snippet replacements)
             val transcript = preprocessTranscript(rawTranscript, snippets, dictWords)
+            Log.d("JUSKOE", "TEXT_CAPTURED: \"$transcript\" (mode=$mode)")
 
             // Step 4: Gemini Processing (with snippet/dict context in system prompt)
             val selectedLangNames = SherpaSTT.getSelectedLanguages(context).map { code ->
@@ -287,10 +289,12 @@ class VoicePipeline(private val context: Context) {
             Log.d(TAG, "Pipeline Gemini took ${geminiMs}ms")
 
             if (processedResult.isFailure) {
+                val em = processedResult.exceptionOrNull()?.message ?: "AI processing failed"
+                Log.e("JUSKOE", "ERROR_STAGE=GEMINI ERROR_MESSAGE=$em")
                 return@withContext PipelineResult(
                     success = false,
                     transcript = transcript,
-                    error = processedResult.exceptionOrNull()?.message ?: "AI processing failed",
+                    error = em,
                 )
             }
 
@@ -310,6 +314,7 @@ class VoicePipeline(private val context: Context) {
                 processedText = output,
             )
         } catch (e: Exception) {
+            Log.e("JUSKOE", "ERROR_STAGE=PIPELINE ERROR_MESSAGE=${e.message}", e)
             PipelineResult(
                 success = false,
                 error = e.message ?: "Pipeline error",
@@ -378,6 +383,23 @@ class VoicePipeline(private val context: Context) {
         }
         val stt = sherpaSTT ?: return ""
         return stt.transcribe(pcmData)
+    }
+
+    /**
+     * Notes mode: transcribe only (no Gemini, no credits). Applies dictionary
+     * corrections + snippet expansion so saved notes match what the user meant.
+     * Returns "" when no speech was detected.
+     */
+    suspend fun transcribeForNote(pcmData: ByteArray): String = withContext(Dispatchers.IO) {
+        try {
+            val raw = runSTT(pcmData)
+            if (raw.isBlank()) return@withContext ""
+            val (snippets, dictWords) = loadLocalContext()
+            preprocessTranscript(raw, snippets, dictWords)
+        } catch (e: Exception) {
+            Log.e(TAG, "transcribeForNote failed", e)
+            ""
+        }
     }
 
     // ============================================

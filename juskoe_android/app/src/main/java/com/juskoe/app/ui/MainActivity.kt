@@ -17,11 +17,17 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.juskoe.app.data.AnalyticsManager
 import com.juskoe.app.data.SupabaseManager
 import com.juskoe.app.ui.navigation.JuskoeNavHost
 import com.juskoe.app.ui.theme.JuskoeTheme
+import com.juskoe.app.util.CloudActivationManager
 import com.juskoe.app.viewmodel.AuthViewModel
 import io.github.jan.supabase.auth.handleDeeplinks
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -46,8 +52,27 @@ class MainActivity : ComponentActivity() {
         // Request all needed permissions on first launch
         requestNeededPermissions()
 
+        // Analytics: track app open (cold start)
+        AnalyticsManager.trackAppOpen()
+
+        // Auto-start JUSKOE Cloud after sign-in events
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                authViewModel.authEvent.collect { event ->
+                    if (event is AuthViewModel.AuthEvent.SignedIn) {
+                        CloudActivationManager.startCloudIfReady(this@MainActivity)
+                    }
+                }
+            }
+        }
+
+        // Try auto-start on launch if perms already granted
+        CloudActivationManager.startCloudIfReady(this)
+
         setContent {
-            JuskoeTheme {
+            val darkMode = getSharedPreferences("juskoe_settings", MODE_PRIVATE)
+                .getBoolean("dark_mode", false)
+            JuskoeTheme(darkTheme = darkMode) {
                 val authState by authViewModel.authState.collectAsState()
                 val usageState by authViewModel.usageState.collectAsState()
 
@@ -69,6 +94,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleOAuthIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Recheck: user may have just granted overlay/accessibility in Settings.
+        CloudActivationManager.startCloudIfReady(this)
     }
 
     private fun handleOAuthIntent(intent: Intent?) {

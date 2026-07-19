@@ -15,9 +15,7 @@ const RAZORPAY_KEY_SECRET = Deno.env.get('RAZORPAY_KEY_SECRET')!;
 
 // ---- Hardcoded coupon codes ----
 const VALID_COUPONS = [
-    'ASTRO100', 'SAIX100', 'SCHOX100', 'JENNIX100',
-    'HEAXY100', 'HARIX100', 'ALMOX100', 'JKJUS100',
-    'AIS0320', 'VIS0641', 'GOV6730', // New 2-month offer codes
+    'AIS0320', 'VIS4368', 'GOV6980',
 ];
 const COUPON_EXPIRY = new Date('2026-12-31T23:59:59+05:30'); // Extended expiry
 const FREE_MONTHS = 2;

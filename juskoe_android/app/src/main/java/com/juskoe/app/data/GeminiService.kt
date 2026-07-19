@@ -3,29 +3,29 @@ package com.juskoe.app.data
 import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
- * JUSKOE Gemini API Service
- * Mirrors aiProcessor.ts — calls Gemini directly via REST API
- * Same prompts, same model (gemini-2.5-flash-lite)
+ * JUSKOE AI Service.
  *
- * KEY DIFFERENCE FROM PREVIOUS VERSION:
- * - No more runBlocking — snippets/dict are passed as parameters
- * - Caller (VoicePipeline) fetches snippets/dict from local Room DB
+ * Builds the AI/Grammar system prompts (mirrors aiProcessor.ts) and sends the
+ * request to the `ai-proxy` Supabase Edge Function, which holds the Gemini key
+ * server-side. The raw Gemini key is never bundled in the app.
  */
 object GeminiService {
 
@@ -34,6 +34,11 @@ object GeminiService {
     private val httpClient = HttpClient(Android) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30_000
+            connectTimeoutMillis = 10_000
+            socketTimeoutMillis = 30_000
         }
     }
 
@@ -79,7 +84,7 @@ object GeminiService {
 
 Context: App=Juskoe Type=mobile Tone=auto
 User Languages: $langNames
-${snippetContext}${dictionaryContext}
+$snippetContext$dictionaryContext
 IMPORTANT SNIPPET RULES:
 - When user says a snippet key (e.g., "my name"), replace it with the snippet content in the output.
 - Snippets are the user's saved text shortcuts. Apply them naturally in context.
@@ -139,55 +144,80 @@ Output: Corrected text only. No explanations. No meta."""
     }
 
     // ============================================
-    // Call Gemini API
+    // Call AI via the secure Edge Function proxy (ai-proxy)
+    // The raw Gemini key never ships in the app — the proxy holds it
+    // server-side (env var KJUS) and enforces auth. Includes timeout + retry.
     // ============================================
 
-    suspend fun callGemini(systemPrompt: String, userPrompt: String): Result<String> {
-        return try {
-            val url = "${Config.GEMINI_API_URL}/${Config.GEMINI_MODEL}:generateContent?key=${Config.GEMINI_API_KEY}"
+    suspend fun callGemini(systemPrompt: String, userPrompt: String, mode: String = "ai"): Result<String> {
+        // Get a token, refreshing if the cached session has none (e.g. app was
+        // backgrounded while the floating cloud is used over another app).
+        var token = SupabaseManager.currentAccessToken() ?: SupabaseManager.refreshSession()
+        if (token == null) {
+            Log.w("JUSKOE", "REQUEST_BLOCKED: not signed in (ai-proxy requires a Supabase session)")
+            return Result.failure<String>(AiAuthRequiredException())
+        }
 
-            val requestBody = buildJsonObject {
-                put("contents", buildJsonArray {
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("parts", buildJsonArray {
-                            add(buildJsonObject { put("text", userPrompt) })
-                        })
-                    })
-                })
-                put("systemInstruction", buildJsonObject {
-                    put("parts", buildJsonArray {
-                        add(buildJsonObject { put("text", systemPrompt) })
-                    })
-                })
-                put("generationConfig", buildJsonObject {
-                    put("maxOutputTokens", 1000)
-                    put("temperature", 0.3)
-                })
+        val maxAttempts = 3
+        var lastError: Exception? = null
+        var refreshedOnce = false
+
+        repeat(maxAttempts) { attempt ->
+            try {
+                val requestBody = buildJsonObject {
+                    put("systemPrompt", systemPrompt)
+                    put("userPrompt", userPrompt)
+                    put("mode", mode)
+                    put("maxTokens", if (mode == "grammar") 256 else 1024)
+                }
+
+                val response = httpClient.post(Config.AI_PROXY_URL) {
+                    contentType(ContentType.Application.Json)
+                    header("Authorization", "Bearer $token")
+                    header("apikey", Config.SUPABASE_ANON_KEY)
+                    setBody(requestBody.toString())
+                }
+                val bodyText = try { response.bodyAsText() } catch (_: Exception) { "" }
+                Log.d("JUSKOE", "REQUEST_SENT: mode=$mode → ${Config.AI_PROXY_URL} (attempt ${attempt + 1}, status=${response.status.value}, bodyLen=${bodyText.length})")
+
+                // Auth failure → refresh the JWT once and retry immediately.
+                if ((response.status.value == 401 || response.status.value == 403) && !refreshedOnce) {
+                    refreshedOnce = true
+                    Log.w("JUSKOE", "AI proxy auth ${response.status.value} — refreshing session and retrying. body=${bodyText.take(200)}")
+                    val fresh = SupabaseManager.refreshSession()
+                    if (fresh == null) return Result.failure<String>(AiAuthRequiredException())
+                    token = fresh
+                    return@repeat
+                }
+
+                if (response.status.value >= 400) {
+                    // Surface the actual proxy error so we know if it's a deploy / key / quota issue.
+                    Log.e("JUSKOE", "AI proxy HTTP ${response.status.value}: ${bodyText.take(500)}")
+                    return Result.failure<String>(Exception("AI proxy error ${response.status.value}: ${bodyText.take(120)}"))
+                }
+
+                val json = Json.parseToJsonElement(bodyText).jsonObject
+                val success = json["success"]?.jsonPrimitive?.boolean ?: false
+                Log.d("JUSKOE", "RESPONSE_RECEIVED: success=$success")
+                if (!success) {
+                    val err = json["error"]?.jsonPrimitive?.content ?: "AI service error"
+                    Log.e("JUSKOE", "ERROR_STAGE=RESPONSE_PARSE ERROR_MESSAGE=$err")
+                    AnalyticsManager.trackError(mode, err)
+                    // 4xx-style errors won't be fixed by retrying — fail fast.
+                    return Result.failure<String>(Exception(err))
+                }
+                val output = json["output"]?.jsonPrimitive?.content?.trim().orEmpty()
+                if (output.isEmpty()) return Result.failure<String>(Exception("Empty AI response"))
+                return Result.success(output)
+            } catch (e: Exception) {
+                // Network/timeout — retry with exponential backoff
+                lastError = e
+                Log.e("JUSKOE", "ERROR_STAGE=GEMINI ERROR_MESSAGE=${e.message} (attempt ${attempt + 1}/$maxAttempts)", e)
+                if (attempt < maxAttempts - 1) delay(400L * (attempt + 1))
             }
-
-            val response = httpClient.post(url) {
-                contentType(ContentType.Application.Json)
-                setBody(requestBody.toString())
-            }
-
-            val body = response.bodyAsText()
-            val json = Json.parseToJsonElement(body).jsonObject
-
-            // Extract text from Gemini response
-            val text = json["candidates"]
-                ?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("content")
-                ?.jsonObject?.get("parts")
-                ?.jsonArray?.firstOrNull()
-                ?.jsonObject?.get("text")
-                ?.jsonPrimitive?.content
-                ?: throw Exception("No text in Gemini response")
-
-            Result.success(text.trim())
-        } catch (e: Exception) {
-            Log.e(TAG, "callGemini failed", e)
-            Result.failure(e)
+        }
+        return Result.failure<String>(lastError ?: Exception("AI request failed")).also {
+            AnalyticsManager.trackError(mode, lastError?.message ?: "AI request failed")
         }
     }
 
@@ -211,7 +241,12 @@ Output: Corrected text only. No explanations. No meta."""
             "grammar" -> getGrammarModePrompt(dictWords, selectedLanguages)
             else -> getAIModePrompt(snippets, dictWords, selectedLanguages)
         }
+        Log.d("JUSKOE", "PROMPT_CREATED: mode=$mode, systemLen=${systemPrompt.length}, inputLen=${transcript.length}")
 
-        return callGemini(systemPrompt, transcript)
+        return callGemini(systemPrompt, transcript, mode)
     }
 }
+
+/** Thrown when an AI call is attempted without a signed-in session (proxy requires auth). */
+class AiAuthRequiredException :
+    Exception("Sign in to use AI features")

@@ -94,9 +94,22 @@ const App: React.FC = () => {
         console.log('[Audio] Starting mic...');
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
-            });
+            // Read selected mic from localStorage (set by SettingsModal)
+            const selectedMic = localStorage.getItem('juskoe_selectedMic') || '';
+            const audioConstraints: MediaTrackConstraints = {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1,
+            };
+            if (selectedMic && selectedMic !== 'default') {
+                try {
+                    audioConstraints.deviceId = { exact: selectedMic };
+                } catch {
+                    // Invalid deviceId — fall back to default
+                }
+            }
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
             streamRef.current = stream;
             audioChunksRef.current = [];
             isRecordingRef.current = true;
@@ -222,6 +235,23 @@ const App: React.FC = () => {
         };
     }, []);
 
+    // Reload history from disk (used on account switch)
+    const reloadHistory = useCallback(() => {
+        if (!ipcRenderer) return;
+        ipcRenderer.invoke('history:get').then((saved: any[]) => {
+            if (saved && saved.length > 0) {
+                setHistory(saved.map((e: any) => ({
+                    time: e.time,
+                    text: e.text,
+                    mode: e.mode,
+                    createdAt: e.created_at || new Date(0).toISOString(),
+                })));
+            } else {
+                setHistory([]);
+            }
+        }).catch(() => setHistory([]));
+    }, []);
+
     // Auth listener
     useEffect(() => {
         if (!ipcRenderer) { setAuthLoading(false); return; }
@@ -232,8 +262,14 @@ const App: React.FC = () => {
             setAuthUser(state.user);
             setAuthLoading(false);
             if (state.isAuthenticated) {
+                // Reload history for the newly logged-in account
+                reloadHistory();
                 // Reset to home on login
                 resetToHome();
+            } else {
+                // On logout, clear history so old account data doesn't leak
+                setHistory([]);
+                reloadHistory();
             }
         });
 
@@ -263,6 +299,7 @@ const App: React.FC = () => {
         // Clear all cached state
         setIsAuthenticated(false);
         setAuthUser(null);
+        setHistory([]);
         // Clear localStorage flags so login/pricing show again
         localStorage.removeItem('juskoe_pricing_seen');
         localStorage.removeItem('juskoe_plan_cache');

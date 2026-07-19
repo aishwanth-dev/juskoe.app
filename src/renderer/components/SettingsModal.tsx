@@ -15,6 +15,7 @@ type TabType = 'general' | 'style' | 'plans' | 'cloud' | 'account';
 type StyleCategory = 'personal' | 'work' | 'email' | 'other';
 type WritingStyleType = 'formal' | 'casual' | 'relaxed';
 
+// Whisper-supported languages (Sherpa-ONNX Whisper Base — 99 languages)
 const LANGUAGES = [
     'Auto',
     'English', 'Afrikaans', 'Albanian', 'Amharic', 'Arabic', 'Armenian', 'Assamese',
@@ -32,10 +33,7 @@ const LANGUAGES = [
     'Tagalog', 'Tajik', 'Tamil', 'Tatar', 'Telugu', 'Thai', 'Tibetan', 'Turkish',
     'Turkmen', 'Ukrainian', 'Urdu', 'Uzbek', 'Vietnamese', 'Welsh', 'Yiddish', 'Yoruba',
 ];
-
-const INPUT_LANGUAGES = [
-    'Auto', ...LANGUAGES,
-];
+const INPUT_LANGUAGES = LANGUAGES;
 
 // Style categories — original Juskoe categories
 const STYLE_CATEGORIES: { key: StyleCategory; label: string; description: string }[] = [

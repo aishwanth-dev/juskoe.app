@@ -5,6 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Float JUSKOE overlay + foreground mic service -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:name=".JuskoeApp"
@@ -38,6 +42,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Cloud diagnostics (live state + force actions) -->
+        <activity
+            android:name=".ui.CloudDiagnosticsActivity"
+            android:exported="false" />
+
         <!-- Custom Keyboard (IME) -->
         <service
             android:name=".keyboard.JuskoeKeyboardService"
@@ -50,6 +59,27 @@
             <meta-data
                 android:name="android.view.im"
                 android:resource="@xml/method" />
+        </service>
+
+        <!-- Float JUSKOE — overlay foreground service (records mic).
+             stopWithTask=false keeps the cloud alive when the app is swiped away. -->
+        <service
+            android:name=".floating.FloatingService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- Accessibility service for inserting text into any focused field -->
+        <service
+            android:name=".floating.FloatingAccessibilityService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
         </service>
 
     </application>

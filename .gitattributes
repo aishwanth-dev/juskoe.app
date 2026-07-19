@@ -1,0 +1,7 @@
+# Sherpa-ONNX model assets must be byte-exact — never apply EOL conversion.
+# (Windows checkouts with core.autocrlf=true would otherwise rewrite the
+# tokens file to CRLF, changing the packaged asset.)
+juskoe_android/app/src/main/assets/sherpa-onnx-whisper-tiny/tiny-tokens.txt -text
+*.onnx binary
+*.aar binary
+*.bin binary

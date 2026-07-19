@@ -157,6 +157,18 @@ export async function signOut(): Promise<void> {
     if (error) throw error;
 }
 
+/** Clear the persisted session file (used on fresh install) */
+export function clearStoredSession(): void {
+    try {
+        if (fs.existsSync(SESSION_FILE)) {
+            fs.unlinkSync(SESSION_FILE);
+            console.log('[Supabase] Cleared stored session file');
+        }
+    } catch (e) {
+        console.warn('[Supabase] Failed to clear session file:', (e as Error).message);
+    }
+}
+
 /** Get current session */
 export async function getSession(): Promise<Session | null> {
     const { data } = await supabase.auth.getSession();
@@ -271,10 +283,14 @@ export async function getUsageSummary(): Promise<UsageSummary> {
     };
 }
 
-/** Update productivity metrics (WPM, Words, Streaks) */
+/** Update productivity metrics (WPM, Words, Streaks, XP, Time Saved) */
 export async function updateProductivityMetrics(updates: {
     words_added?: number;
     wpm?: number;
+    total_words?: number;
+    xp?: number;
+    time_saved_minutes?: number;
+    level?: string;
 }): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;

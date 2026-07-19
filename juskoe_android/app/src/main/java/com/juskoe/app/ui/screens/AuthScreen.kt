@@ -224,7 +224,7 @@ fun AuthScreen(
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Brown),
+            colors = ButtonDefaults.buttonColors(containerColor = Purple),
             enabled = email.isNotBlank() && password.length >= 6 && !authState.loading,
         ) {
             if (authState.loading) {

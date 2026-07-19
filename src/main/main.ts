@@ -73,6 +73,8 @@ import {
     getCommandHistory,
     addCommandHistory,
     clearCommandHistory,
+    // Data Management
+    clearAllLocalData,
 } from './localStorage';
 
 // ============================================
@@ -649,25 +651,31 @@ async function getSelectedText(): Promise<string> {
 
             const psCommand = `
                 Add-Type -AssemblyName System.Windows.Forms
-                Start-Sleep -Milliseconds 80
+                Start-Sleep -Milliseconds 120
                 [System.Windows.Forms.SendKeys]::SendWait('^c')
-                Start-Sleep -Milliseconds 250
+                Start-Sleep -Milliseconds 350
             `;
 
             const { exec } = require('child_process');
-            exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand.replace(/\n/g, '; ')}"`, { timeout: 3000 }, () => {
+            exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand.replace(/\n/g, '; ')}"`, { timeout: 5000 }, () => {
                 setTimeout(() => {
                     const afterClipboard = clipboard.readText();
 
                     // Selection = clipboard changed after Ctrl+C
                     if (afterClipboard && afterClipboard.trim() !== beforeClipboard.trim()) {
+                        // Length guard: >5000 chars is probably a full doc copy, not a selection
+                        if (afterClipboard.length > 5000) {
+                            console.log(`[Selection] Skipping — clipboard too long (${afterClipboard.length} chars), likely not a selection`);
+                            resolve('');
+                            return;
+                        }
                         console.log(`[Selection] ✓ Selected text: "${afterClipboard.substring(0, 80)}" (${afterClipboard.length} chars)`);
                         resolve(afterClipboard.trim());
                     } else {
                         console.log('[Selection] No selection — pure AI mode');
                         resolve('');
                     }
-                }, 300);
+                }, 350);
             });
         } catch (error) {
             console.error('[Selection] Error:', error);
@@ -956,6 +964,17 @@ function setupIPC(): void {
                 return;
             }
 
+            // Quality gate: reject very short transcripts (< 3 words) as likely noise
+            const shortWordCount = cleanedTranscript.split(/\s+/).length;
+            if (shortWordCount < 3) {
+                console.log(`[RESULT] Too short (${shortWordCount} words), likely noise: "${cleanedTranscript}"`);
+                safeSendOverlay('overlay:error-category', 'voice');
+                setOverlayState('error');
+                clearTimeout(pipelineTimeout);
+                isPipelineRunning = false;
+                return;
+            }
+
             // === NOTES MODE: Clean STT + format + save (F7+F8 combined) ===
             if (currentMode === 'notes') {
                 console.log(`[NOTES] Processing with AI formatter...`);
@@ -1089,8 +1108,17 @@ function setupIPC(): void {
                 // Detect error category for overlay
                 const errMsg = result.error || 'Unknown error';
                 let category = 'generic';
-                if (errMsg.includes('timed out') || errMsg.includes('fetch') || errMsg.includes('network')) {
+                let aiMessage = '';
+                if (errMsg.startsWith('bad_response:')) {
+                    category = 'bad_response';
+                    aiMessage = errMsg.replace('bad_response:', '');
+                } else if (errMsg === 'bad_response') {
+                    category = 'bad_response';
+                } else if (errMsg.includes('timed out') || errMsg.includes('fetch') || errMsg.includes('network')) {
                     category = 'network';
+                }
+                if (aiMessage) {
+                    safeSendOverlay('overlay:error-message', aiMessage);
                 }
                 safeSendOverlay('overlay:error-category', category);
                 setOverlayState('error');
@@ -1223,6 +1251,9 @@ function setupIPC(): void {
     // ---- Command History IPC ----
     ipcMain.handle('history:get', () => getCommandHistory());
     ipcMain.handle('history:clear', () => { clearCommandHistory(); return true; });
+
+    // ---- Data Management IPC ----
+    ipcMain.handle('data:clear-all', () => { clearAllLocalData(); return true; });
 
     // ---- Settings IPC ----
     ipcMain.handle('settings:getAll', () => getAllSettings());
@@ -1538,6 +1569,7 @@ function createTray(): void {
         { type: 'separator' },
         { label: 'AI Mode (F7)', click: () => startRecording('ai') },
         { label: 'Grammar (F8)', click: () => startRecording('grammar') },
+        { label: 'Notes Mode (F9)', click: () => startRecording('notes') },
         { type: 'separator' },
         { label: 'Quit', click: () => { isQuitting = true; app.quit(); } }
     ]));

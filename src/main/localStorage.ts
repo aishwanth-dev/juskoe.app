@@ -6,6 +6,7 @@
 import { app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import { createHash } from 'crypto';
 
 // Types
 export interface DictionaryEntry {
@@ -52,7 +53,69 @@ export interface ProductivityData {
     avgWpm: number;
     streakDays: number;
     lastActiveDate: string;   // YYYY-MM-DD
+    totalTimeSavedMinutes: number;
+    xp: number;
+    level: LevelName;
     dailyHistory: DailyStats[];
+}
+
+export type LevelName = 'Newbie' | 'Rookie' | 'Pro' | 'Elite' | 'Legend' | 'KING';
+
+export interface LevelInfo {
+    name: LevelName;
+    xpForNext: number;       // XP needed to reach next level (0 = max level)
+    currentLevelXp: number;  // XP at start of current level
+    nextLevelXp: number;     // XP needed for next level
+    progressPercent: number; // 0-100
+}
+
+const LEVEL_THRESHOLDS: { name: LevelName; xpRequired: number }[] = [
+    { name: 'Newbie',  xpRequired: 0 },
+    { name: 'Rookie',  xpRequired: 1000 },
+    { name: 'Pro',     xpRequired: 5000 },
+    { name: 'Elite',   xpRequired: 25000 },
+    { name: 'Legend',  xpRequired: 100000 },
+    { name: 'KING',    xpRequired: 500000 },
+];
+
+export function getLevelInfo(xp: number): LevelInfo {
+    let currentLevel: LevelName = 'Newbie';
+    let currentLevelXp = 0;
+    let nextLevelXp = LEVEL_THRESHOLDS[1].xpRequired;
+
+    for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+        if (xp >= LEVEL_THRESHOLDS[i].xpRequired) {
+            currentLevel = LEVEL_THRESHOLDS[i].name;
+            currentLevelXp = LEVEL_THRESHOLDS[i].xpRequired;
+
+            if (i < LEVEL_THRESHOLDS.length - 1) {
+                nextLevelXp = LEVEL_THRESHOLDS[i + 1].xpRequired;
+            } else {
+                nextLevelXp = LEVEL_THRESHOLDS[i].xpRequired; // KING is max
+            }
+            break;
+        }
+    }
+
+    const range = nextLevelXp - currentLevelXp;
+    const progress = xp - currentLevelXp;
+    const progressPercent = range > 0 ? Math.min(100, Math.round((progress / range) * 100)) : 100;
+
+    const xpForNext = nextLevelXp;
+
+    return { name: currentLevel, xpForNext, currentLevelXp, nextLevelXp, progressPercent };
+}
+
+/** Estimate minutes of typing time saved at 40 WPM baseline */
+function estimateTimeSavedMinutes(totalWords: number): number {
+    return Math.round(totalWords / 40);
+}
+
+function deriveLevel(xp: number): LevelName {
+    for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+        if (xp >= LEVEL_THRESHOLDS[i].xpRequired) return LEVEL_THRESHOLDS[i].name;
+    }
+    return 'Newbie';
 }
 
 export interface HistoryEntry {
@@ -82,6 +145,9 @@ const defaultProductivity: ProductivityData = {
     avgWpm: 0,
     streakDays: 0,
     lastActiveDate: '',
+    totalTimeSavedMinutes: 0,
+    xp: 0,
+    level: 'Newbie',
     dailyHistory: [],
 };
 let data: StorageData = {
@@ -96,13 +162,76 @@ let data: StorageData = {
 };
 
 /**
- * Initialize the local storage
+ * Derive a unique but anonymous per-account hash from the user's email.
+ * Uses the first 16 chars of SHA-256 so the hash is stable across restarts
+ * but does not expose the raw email in filenames.
+ *
+ * When no user is logged in, returns 'default' so unauthenticated
+ * data lives in a shared fallback file.
+ */
+function getUserIdHash(): string {
+    try {
+        // Dynamic require avoids circular dependency with authManager
+        const { getCachedProfile } = require('./authManager');
+        const profile = getCachedProfile();
+        if (profile?.email) {
+            return createHash('sha256')
+                .update(profile.email.toLowerCase().trim())
+                .digest('hex')
+                .substring(0, 16);
+        }
+    } catch {
+        // authManager not yet loaded — use default
+    }
+    return 'default';
+}
+
+/**
+ * Resolve the storage path for the currently logged-in user.
+ */
+function resolveStoragePath(): string {
+    const userDataPath = app.getPath('userData');
+    const hash = getUserIdHash();
+    return path.join(userDataPath, `juskoe-data_${hash}.json`);
+}
+
+/**
+ * Switch the active database to a different account.
+ * Saves current data, then loads the target account's data.
+ * Call this on login and logout.
+ */
+export function switchAccount(): void {
+    // Save current data before switching
+    saveData();
+
+    const newPath = resolveStoragePath();
+    console.log(`[LocalDB] Switching account → ${path.basename(newPath)}`);
+    storagePath = newPath;
+
+    if (fs.existsSync(storagePath)) {
+        try {
+            const raw = fs.readFileSync(storagePath, 'utf-8');
+            data = JSON.parse(raw);
+            console.log('[LocalDB] Loaded data for this account');
+        } catch (e) {
+            console.error('[LocalDB] Error loading account data, using defaults:', e);
+            initDefaults();
+        }
+    } else {
+        initDefaults();
+    }
+}
+
+/**
+ * Initialize the local storage for the current account.
+ * On fresh install (no existing database), clears any stale session
+ * so the user sees the login page instead of being auto-logged in.
  */
 export function initLocalDatabase(): void {
-    const userDataPath = app.getPath('userData');
-    storagePath = path.join(userDataPath, 'juskoe-data.json');
+    storagePath = resolveStoragePath();
+    console.log(`[LocalDB] Storage at: ${path.basename(storagePath)}`);
 
-    console.log(`[LocalDB] Storage at: ${storagePath}`);
+    const isFreshInstall = !fs.existsSync(storagePath);
 
     // Load existing data or create default
     if (fs.existsSync(storagePath)) {
@@ -116,6 +245,16 @@ export function initLocalDatabase(): void {
         }
     } else {
         initDefaults();
+        // Fresh install — clear any leftover session so the user must log in
+        if (isFreshInstall) {
+            try {
+                const { clearStoredSession } = require('../shared/supabase');
+                clearStoredSession();
+                console.log('[LocalDB] Fresh install — cleared stale session');
+            } catch (e) {
+                console.warn('[LocalDB] Could not clear session:', e);
+            }
+        }
     }
 
     // Migration: add productivity field if missing (older data files)
@@ -458,6 +597,11 @@ export function updateProductivityLocal(wordCount: number, wpm: number): void {
         p.lastActiveDate = today;
     }
 
+    // Update XP, time saved, and level
+    p.xp = p.totalWords; // XP = total words
+    p.totalTimeSavedMinutes = estimateTimeSavedMinutes(p.totalWords);
+    p.level = deriveLevel(p.xp);
+
     saveData();
 }
 
@@ -480,7 +624,9 @@ export function getProductivityStats(): ProductivityData {
         }
     }
 
-    return { ...p };
+    // Attach level info for display (widened return type for renderer)
+    const levelInfo = getLevelInfo(p.xp);
+    return { ...p, levelInfo } as ProductivityData & { levelInfo: LevelInfo };
 }
 
 // ============================================
@@ -508,6 +654,28 @@ export function addCommandHistory(entry: Omit<HistoryEntry, 'id' | 'created_at'>
 export function clearCommandHistory(): void {
     data.commandHistory = [];
     saveData();
+}
+
+// ============================================
+// Clear All Data (for fresh start or account wipe)
+// ============================================
+
+/** Delete the current account's data file entirely and re-init defaults */
+export function clearAllLocalData(): void {
+    // Reset in-memory data to defaults
+    initDefaults();
+    // Delete the file on disk
+    try {
+        if (fs.existsSync(storagePath)) {
+            fs.unlinkSync(storagePath);
+            console.log('[LocalDB] Deleted data file:', storagePath);
+        }
+    } catch (e) {
+        console.error('[LocalDB] Error deleting data file:', e);
+    }
+    // Save fresh defaults to a new file
+    saveData();
+    console.log('[LocalDB] All data cleared and reset to defaults');
 }
 
 // ============================================
